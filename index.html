@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Suivi des dossiers de permis</title>
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#1c2230; --muted:#6b7280;
+    --blue:#2563eb; --blue-bg:#eef2ff;
+    --green:#15803d; --green-bg:#eafaf0;
+    --orange:#c2650a; --orange-bg:#fff3e0;
+    --red:#c0281c; --red-bg:#fdecea;
+    --yellow:#92730a; --yellow-bg:#fff8e1;
+    --grey-bg:#eef0f3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px;
+  }
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 24px 60px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+  header h1{font-size:20px;margin:0;font-weight:700;}
+  header .sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .meta{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 0 3px var(--green-bg);}
+  button{
+    font:inherit;cursor:pointer;border:1px solid var(--border);background:var(--card);
+    color:var(--text);border-radius:8px;padding:7px 12px;font-size:13px;transition:.15s;
+  }
+  button:hover{background:var(--grey-bg);}
+  button.primary{background:var(--blue);color:#fff;border-color:var(--blue);}
+  button.primary:hover{background:#1d4ed8;}
+  button.danger{color:var(--red);}
+  button.small{padding:4px 9px;font-size:12px;}
+
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px;}
+  @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr);}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 14px;}
+  .kpi .val{font-size:22px;font-weight:700;line-height:1.1;}
+  .kpi .lbl{color:var(--muted);font-size:12px;margin-top:4px;}
+  .kpi.alert .val{color:var(--red);}
+  .kpi.warn .val{color:var(--orange);}
+  .kpi.ok .val{color:var(--green);}
+
+  .charts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  @media(max-width:1100px){.charts{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:640px){.charts{grid-template-columns:1fr;}}
+  .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;height:220px;display:flex;flex-direction:column;}
+  .chart-card h3{font-size:12.5px;margin:0 0 8px;color:var(--muted);font-weight:600;}
+  .chart-card .canvas-wrap{flex:1;position:relative;}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;}
+  .toolbar input[type=text],.toolbar input#search,.toolbar select{
+    font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);font-size:13px;
+  }
+  .toolbar #search{min-width:220px;flex:1;}
+  .toolbar label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+  .spacer{flex:1;}
+
+  .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:640px;}
+  table{border-collapse:collapse;width:100%;font-size:12.8px;}
+  thead th{
+    position:sticky;top:0;background:#fafbfc;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);
+    font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;user-select:none;
+  }
+  thead th.sorted::after{content:" \25BE";color:var(--blue);}
+  thead th.sorted-asc::after{content:" \25B4";color:var(--blue);}
+  tbody td{padding:8px 10px;border-bottom:1px solid #eef0f3;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;}
+  tbody tr:hover{background:#fafbfd;}
+  tbody tr.archived{opacity:.55;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+  .b-Initié{background:var(--grey-bg);color:#4b5563;}
+  .b-Esquisse{background:var(--blue-bg);color:var(--blue);}
+  .b-Prêt{background:#f3e8ff;color:#7e22ce;}
+  .b-Déposé{background:var(--orange-bg);color:var(--orange);}
+  .b-Retour{background:var(--yellow-bg);color:var(--yellow);}
+  .b-Terminé{background:var(--green-bg);color:var(--green);}
+  .u-EnCours{background:var(--blue-bg);color:var(--blue);}
+  .u-Accordé{background:var(--green-bg);color:var(--green);}
+  .u-Refusé{background:var(--red-bg);color:var(--red);}
+  .u-none{background:var(--grey-bg);color:var(--muted);}
+  .p-Élevée{background:var(--red-bg);color:var(--red);}
+  .p-Normale{background:var(--grey-bg);color:#4b5563;}
+  .p-Faible{background:var(--blue-bg);color:var(--blue);}
+  .jr{font-weight:700;padding:2px 8px;border-radius:999px;font-size:11.5px;}
+  .jr-retard{background:var(--red-bg);color:var(--red);}
+  .jr-urgent{background:var(--orange-bg);color:var(--orange);}
+  .jr-surveiller{background:var(--yellow-bg);color:var(--yellow);}
+  .jr-ok{background:var(--green-bg);color:var(--green);}
+  .jr-none{color:var(--muted);}
+  a.link{color:var(--blue);text-decoration:none;font-size:12px;}
+  a.link:hover{text-decoration:underline;}
+  .txt-muted{color:var(--muted);font-size:12px;}
+  .actions-cell{display:flex;gap:6px;}
+
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .modal.hidden{display:none;}
+  .modal-card{background:#fff;border-radius:14px;padding:20px 22px;width:640px;max-width:92vw;max-height:88vh;overflow:auto;}
+  .modal-card h3{margin:0 0 14px;font-size:16px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .form-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#374151;font-weight:600;}
+  .form-grid input,.form-grid select,.form-grid textarea{
+    font:inherit;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:400;
+  }
+  .form-grid textarea{min-height:50px;resize:vertical;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .footnote{color:var(--muted);font-size:11.5px;margin-top:14px;line-height:1.5;}
+  .count-pill{font-size:12px;color:var(--muted);}
+
+  .login-gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .login-gate.hidden{display:none;}
+  .login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px 40px;max-width:380px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.06);}
+  .login-card h2{margin:0 0 8px;font-size:18px;}
+  .login-card p{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 20px;}
+  .login-card button{width:100%;padding:10px;font-size:14px;}
+  .login-error{color:var(--red)!important;font-size:12.5px;margin-top:14px!important;min-height:1em;}
+  #dashboardRoot.hidden{display:none;}
+  .user-chip{display:flex;align-items:center;gap:6px;}
+  .user-chip img{width:22px;height:22px;border-radius:50%;}
+</style>
+</head>
+<body>
+
+<div class="login-gate" id="loginGate">
+  <div class="login-card">
+    <h2>Suivi des dossiers de permis</h2>
+    <p>Connectez-vous avec le compte Google autoris&eacute; pour acc&eacute;der au tableau de bord, synchronis&eacute; en temps r&eacute;el entre tous vos appareils.</p>
+    <button class="primary" id="btnGoogleSignIn">Se connecter avec Google</button>
+    <p class="login-error" id="loginError"></p>
+  </div>
+</div>
+
+<div class="wrap hidden" id="dashboardRoot">
+  <header>
+    <div>
+      <h1>Suivi des dossiers de permis</h1>
+      <div class="sub">Permis de construire &middot; d&eacute;clarations pr&eacute;alables &middot; dossiers ERP</div>
+    </div>
+    <div class="meta">
+      <span class="sync-dot" id="syncDot"></span>
+      <span id="syncLabel">Synchronis&eacute;</span>
+      <span>&middot;</span>
+      <span id="lastUpdate">--:--</span>
+      <span>&middot;</span>
+      <span class="user-chip"><img id="userPhoto" src="" alt=""><span id="userName"></span></span>
+      <button id="btnSignOut" class="small">D&eacute;connexion</button>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="charts">
+    <div class="chart-card"><h3>R&eacute;partition par statut (actifs)</h3><div class="canvas-wrap"><canvas id="chartStatut"></canvas></div></div>
+    <div class="chart-card"><h3>Statut urbanisme (actifs)</h3><div class="canvas-wrap"><canvas id="chartUrb"></canvas></div></div>
+    <div class="chart-card"><h3>D&eacute;lais moyens, en jours (tous dossiers)</h3><div class="canvas-wrap"><canvas id="chartDelais"></canvas></div></div>
+    <div class="chart-card"><h3>D&eacute;p&ocirc;ts par mois (12 derniers)</h3><div class="canvas-wrap"><canvas id="chartDepots"></canvas></div></div>
+  </section>
+
+  <section class="toolbar">
+    <input type="text" id="search" placeholder="Rechercher client, commune, ID...">
+    <select id="filterStatut"><option value="">Tous statuts</option></select>
+    <select id="filterPriorite"><option value="">Toutes priorit&eacute;s</option></select>
+    <select id="filterUrb"><option value="">Toute instruction</option></select>
+    <label><input type="checkbox" id="showArchived"> Afficher les archiv&eacute;s</label>
+    <span class="spacer"></span>
+    <span class="count-pill" id="countPill"></span>
+    <button id="btnAdd" class="primary">+ Nouveau dossier</button>
+    <button id="btnExport">Exporter CSV</button>
+  </section>
+
+  <div class="table-wrap">
+    <table id="table">
+      <thead>
+        <tr>
+          <th data-key="id">ID</th>
+          <th data-key="client">Client</th>
+          <th data-key="commune">Commune</th>
+          <th data-key="statut">Statut</th>
+          <th data-key="priorite">Priorit&eacute;</th>
+          <th data-key="statutUrb">Urbanisme</th>
+          <th data-key="depot">D&eacute;p&ocirc;t</th>
+          <th data-key="dateLimite">Limite</th>
+          <th data-key="joursRestants">Jours restants</th>
+          <th data-key="otake">Otak&eacute;</th>
+          <th data-key="tarifHT">Tarif HT</th>
+          <th>Lien</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="footnote">
+    Donn&eacute;es stock&eacute;es dans Firebase (Google) et synchronis&eacute;es en temps r&eacute;el entre tous vos appareils connect&eacute;s avec ce compte Google. Les jours restants et indicateurs se recalculent automatiquement &agrave; chaque ouverture. Emails et mots de passe des portails GNAU/guichet unique ne sont volontairement pas repris ici pour des raisons de s&eacute;curit&eacute;. Acc&egrave;s restreint &agrave; michael.vandeville@gmail.com.
+  </div>
+</div>
+
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+    <h3 id="modalTitle">Nouveau dossier</h3>
+    <form id="form">
+      <div class="form-grid">
+        <label class="full">ID dossier
+          <input type="text" name="id" required>
+        </label>
+        <label>Client
+          <input type="text" name="client" required>
+        </label>
+        <label>Commune
+          <input type="text" name="commune">
+        </label>
+        <label>Statut
+          <select name="statut">
+            <option>Initi&eacute;</option>
+            <option>Esquisse</option>
+            <option>Pr&ecirc;t</option>
+            <option>D&eacute;pos&eacute;</option>
+            <option>Retour</option>
+            <option>Termin&eacute;</option>
+          </select>
+        </label>
+        <label>Priorit&eacute;
+          <select name="priorite">
+            <option>Faible</option>
+            <option selected>Normale</option>
+            <option>Élev&eacute;e</option>
+          </select>
+        </label>
+        <label>Statut urbanisme
+          <select name="statutUrb">
+            <option value="">Non renseign&eacute;</option>
+            <option>En cours</option>
+            <option>Accord&eacute;</option>
+            <option>Refus&eacute;</option>
+          </select>
+        </label>
+        <label>Otak&eacute;
+          <select name="otake">
+            <option value="">-</option>
+            <option>Oui</option>
+            <option>Non</option>
+          </select>
+        </label>
+        <label>Tarif HT (&euro;)
+          <input type="number" name="tarifHT" step="1">
+        </label>
+        <label>RDV
+          <input type="date" name="rdv">
+        </label>
+        <label>Esquisse
+          <input type="date" name="esquisse">
+        </label>
+        <label>Validation
+          <input type="date" name="validation">
+        </label>
+        <label>Pr&ecirc;t
+          <input type="date" name="pret">
+        </label>
+        <label>D&eacute;p&ocirc;t
+          <input type="date" name="depot">
+        </label>
+        <label>Date limite
+          <input type="date" name="dateLimite">
+        </label>
+        <label>Retour
+          <input type="date" name="retour">
+        </label>
+        <label>D&eacute;p&ocirc;t retour
+          <input type="date" name="depotRetour">
+        </label>
+        <label class="full">Lien GNAU / guichet unique
+          <input type="text" name="lienGnau">
+        </label>
+        <label class="full">To do
+          <input type="text" name="todo">
+        </label>
+        <label class="full">Commentaires
+          <textarea name="commentaires"></textarea>
+        </label>
+        <label><input type="checkbox" name="archivage" style="width:auto;"> Dossier archiv&eacute;</label>
+      </div>
+    </form>
+    <div class="modal-actions">
+      <button id="btnDelete" class="danger" style="margin-right:auto;display:none;">Supprimer</button>
+      <button id="btnCancel">Annuler</button>
+      <button id="btnSave" class="primary">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
+  onSnapshot, writeBatch, getDocs, query
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAM79T9iucfoVEYOk_CXKxrX6ATzTd3px4",
+  authDomain: "suivi-dossiers-permis.firebaseapp.com",
+  projectId: "suivi-dossiers-permis",
+  storageBucket: "suivi-dossiers-permis.firebasestorage.app",
+  messagingSenderId: "939691584816",
+  appId: "1:939691584816:web:fc454ad14e5e9ddbe8ecf5"
+};
+
+const ALLOWED_EMAIL = "michael.vandeville@gmail.com";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const dossiersCol = collection(db, "dossiers");
+const metaDocRef = doc(db, "meta", "seed");
+
+const STATUTS = ['Initié','Esquisse','Prêt','Déposé','Retour','Terminé'];
+const URBS = ['En cours','Accordé','Refusé'];
+const PRIOS = ['Faible','Normale','Élevée'];
+const DELAY_FIELDS = [
+  ['delaiEsquisse','Délai Esquisse'],
+  ['delaiTraitement','Délai traitement'],
+  ['delaiValidation','Délai validation'],
+  ['delaiEsqDossier','Délai Esq./Dossier'],
+  ['delaiDepot','Délai dépot'],
+  ['delaiRetour','Délai Retour'],
+];
+
+let sortKey = 'joursRestants';
+let sortDir = 1;
+let editingDocId = null;
+let charts = {};
+let DATA = [];
+let unsubscribe = null;
+
+function todayMidnight(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+function parseDate(s){ if(!s) return null; const d = new Date(s+'T00:00:00'); return isNaN(d) ? null : d; }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function fmtDate(s){ if(!s) return '—'; const d = parseDate(s); if(!d) return s; return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function euros(v){ if(v===null||v===undefined||v==='') return '—'; return Number(v).toLocaleString('fr-FR')+' €'; }
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function computeDerived(d){
+  const isArchived = d.archivage === 'Oui';
+  let jr = null, urgency = 'none';
+  if(d.dateLimite && !isArchived){
+    const dl = parseDate(d.dateLimite);
+    if(dl){
+      jr = daysBetween(todayMidnight(), dl);
+      if(d.statutUrb && d.statutUrb !== 'En cours'){
+        urgency = 'none'; jr = null;
+      } else if(jr < 0) urgency = 'retard';
+      else if(jr <= 15) urgency = 'urgent';
+      else if(jr <= 30) urgency = 'surveiller';
+      else urgency = 'ok';
+    }
+  }
+  return Object.assign({}, d, {joursRestants: jr, urgency, isArchived});
+}
+
+function populateFilters(){
+  const fS = document.getElementById('filterStatut');
+  const fP = document.getElementById('filterPriorite');
+  const fU = document.getElementById('filterUrb');
+  if(fS.dataset.filled) return;
+  STATUTS.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; fS.appendChild(o); });
+  PRIOS.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; fP.appendChild(o); });
+  URBS.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; fU.appendChild(o); });
+  const oNone = document.createElement('option'); oNone.value='__none__'; oNone.textContent='Non renseigné'; fU.appendChild(oNone);
+  fS.dataset.filled = '1';
+}
+
+function currentView(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const fS = document.getElementById('filterStatut').value;
+  const fP = document.getElementById('filterPriorite').value;
+  const fU = document.getElementById('filterUrb').value;
+  const showArchived = document.getElementById('showArchived').checked;
+
+  let rows = DATA.map(computeDerived);
+  if(!showArchived) rows = rows.filter(r=>!r.isArchived);
+  if(q) rows = rows.filter(r => (r.client||'').toLowerCase().includes(q) || (r.commune||'').toLowerCase().includes(q) || (r.id||'').toLowerCase().includes(q));
+  if(fS) rows = rows.filter(r=>r.statut===fS);
+  if(fP) rows = rows.filter(r=>r.priorite===fP);
+  if(fU) rows = rows.filter(r=> fU==='__none__' ? !r.statutUrb : r.statutUrb===fU);
+
+  rows.sort((a,b)=>{
+    let av = a[sortKey], bv = b[sortKey];
+    if(sortKey==='joursRestants'){
+      av = (av===null||av===undefined) ? Infinity : av;
+      bv = (bv===null||bv===undefined) ? Infinity : bv;
+    } else {
+      av = av===null||av===undefined ? '' : av;
+      bv = bv===null||bv===undefined ? '' : bv;
+    }
+    if(av<bv) return -1*sortDir;
+    if(av>bv) return 1*sortDir;
+    return 0;
+  });
+  return rows;
+}
+
+function renderKPIs(){
+  const active = DATA.map(computeDerived).filter(r=>!r.isArchived);
+  const total = DATA.length;
+  const archives = DATA.filter(d=>d.archivage==='Oui').length;
+  const deposes = active.filter(r=>r.statut==='Déposé').length;
+  const retard = active.filter(r=>r.urgency==='retard').length;
+  const urgent = active.filter(r=>r.urgency==='urgent').length;
+  const ca = active.reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
+
+  const items = [
+    {lbl:'Dossiers actifs', val: active.length, cls:''},
+    {lbl:'En instruction (déposés)', val: deposes, cls:''},
+    {lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok'},
+    {lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
+    {lbl:'CA actif HT', val: ca.toLocaleString('fr-FR')+' €', cls:''},
+    {lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:''},
+  ];
+  document.getElementById('kpis').innerHTML = items.map(it=>
+    `<div class="kpi ${it.cls}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+  ).join('');
+}
+
+function renderTable(){
+  const rows = currentView();
+  document.getElementById('countPill').textContent = rows.length + ' dossier(s) affiché(s)';
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.map(r=>{
+    const urbClass = r.statutUrb==='En cours'?'u-EnCours':r.statutUrb==='Accordé'?'u-Accordé':r.statutUrb==='Refusé'?'u-Refusé':'u-none';
+    const prioClass = r.priorite==='Élevée'?'p-Élevée':r.priorite==='Faible'?'p-Faible':'p-Normale';
+    const statClass = 'b-'+r.statut;
+    let jrHtml = '<span class="jr jr-none">—</span>';
+    if(r.joursRestants!==null && r.joursRestants!==undefined){
+      const cls = 'jr-'+r.urgency;
+      const txt = r.joursRestants<0 ? (Math.abs(r.joursRestants)+' j de retard') : (r.joursRestants+' j');
+      jrHtml = `<span class="jr ${cls}">${txt}</span>`;
+    }
+    let lienHtml = '—';
+    if(r.lienGnau){
+      const v = r.lienGnau.trim();
+      if(/^https?:\/\//i.test(v)) lienHtml = `<a class="link" href="${esc(v)}" target="_blank" rel="noopener">Portail &rarr;</a>`;
+      else lienHtml = `<span class="txt-muted" title="${esc(v)}">${esc(v.slice(0,18))}${v.length>18?'…':''}</span>`;
+    }
+    return `<tr class="${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
+      <td>${esc(r.id)}</td>
+      <td title="${esc(r.commentaires||'')}">${esc(r.client)}</td>
+      <td>${esc(r.commune||'—')}</td>
+      <td><span class="badge ${statClass}">${esc(r.statut||'—')}</span></td>
+      <td><span class="badge ${prioClass}">${esc(r.priorite||'—')}</span></td>
+      <td><span class="badge ${urbClass}">${esc(r.statutUrb||'—')}</span></td>
+      <td>${fmtDate(r.depot)}</td>
+      <td>${fmtDate(r.dateLimite)}</td>
+      <td>${jrHtml}</td>
+      <td>${esc(r.otake||'—')}</td>
+      <td>${euros(r.tarifHT)}</td>
+      <td>${lienHtml}</td>
+      <td class="actions-cell">
+        <button class="small btn-edit">Modifier</button>
+        <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
+
+  tbody.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
+    const docId = e.target.closest('tr').dataset.docid;
+    openModal(DATA.find(d=>d._docId===docId));
+  }));
+  tbody.querySelectorAll('.btn-archive').forEach(b=>b.addEventListener('click', async e=>{
+    const docId = e.target.closest('tr').dataset.docid;
+    const rec = DATA.find(d=>d._docId===docId);
+    await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
+  }));
+}
+
+function mkChart(canvasId, type, labels, datasets, small){
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type, data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{ font:{size: small?9:10}, maxRotation:small?60:0 } }, y:{ beginAtZero:true, ticks:{font:{size:10}} } }
+    }
+  });
+}
+
+function renderCharts(){
+  const active = DATA.map(computeDerived).filter(r=>!r.isArchived);
+
+  const statutCounts = STATUTS.map(s=> active.filter(r=>r.statut===s).length);
+  mkChart('chartStatut','bar', STATUTS, [{data:statutCounts, backgroundColor:'#2563eb'}]);
+
+  const urbLabels = ['En cours','Accordé','Refusé','Non renseigné'];
+  const urbCounts = urbLabels.map(l=> l==='Non renseigné' ? active.filter(r=>!r.statutUrb).length : active.filter(r=>r.statutUrb===l).length);
+  mkChart('chartUrb','bar', urbLabels, [{data:urbCounts, backgroundColor:'#7e22ce'}]);
+
+  const delayLabels = DELAY_FIELDS.map(f=>f[1]);
+  const delayVals = DELAY_FIELDS.map(f=>{
+    const vals = DATA.map(d=>d[f[0]]).filter(v=>v!==null && v!==undefined);
+    if(!vals.length) return 0;
+    return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
+  });
+  mkChart('chartDelais','bar', delayLabels, [{data:delayVals, backgroundColor:'#c2650a'}], true);
+
+  const monthMap = {};
+  DATA.forEach(d=>{ if(d.depot){ const m = d.depot.slice(0,7); monthMap[m]=(monthMap[m]||0)+1; } });
+  const months = Object.keys(monthMap).sort().slice(-12);
+  mkChart('chartDepots','bar', months.map(m=>m), [{data:months.map(m=>monthMap[m]), backgroundColor:'#15803d'}]);
+}
+
+function renderAll(){
+  renderKPIs();
+  renderTable();
+  renderCharts();
+  document.getElementById('lastUpdate').textContent = 'MAJ ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+document.querySelectorAll('thead th[data-key]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(sortKey===key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
+    document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sorted','sorted-asc'));
+    th.classList.add(sortDir===1?'sorted':'sorted-asc');
+    renderTable();
+  });
+});
+
+['search','filterStatut','filterPriorite','filterUrb','showArchived'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderTable);
+  document.getElementById(id).addEventListener('change', renderTable);
+});
+
+const modal = document.getElementById('modal');
+const form = document.getElementById('form');
+function openModal(rec){
+  editingDocId = rec ? rec._docId : null;
+  document.getElementById('modalTitle').textContent = rec ? ('Modifier '+rec.id) : 'Nouveau dossier';
+  form.reset();
+  document.getElementById('btnDelete').style.display = rec ? '' : 'none';
+  if(rec){
+    Object.keys(rec).forEach(k=>{
+      const el = form.elements[k];
+      if(!el) return;
+      if(el.type==='checkbox') el.checked = rec[k]==='Oui';
+      else el.value = rec[k]===null||rec[k]===undefined ? '' : rec[k];
+    });
+  }
+  modal.classList.remove('hidden');
+}
+function closeModal(){ modal.classList.add('hidden'); editingDocId=null; }
+document.getElementById('btnAdd').addEventListener('click', ()=>openModal(null));
+document.getElementById('btnCancel').addEventListener('click', closeModal);
+modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+document.getElementById('btnSave').addEventListener('click', async ()=>{
+  const fd = new FormData(form);
+  const rec = {};
+  ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','todo','commentaires'].forEach(k=>{
+    rec[k] = fd.get(k) || null;
+  });
+  rec.tarifHT = fd.get('tarifHT') ? Number(fd.get('tarifHT')) : null;
+  rec.archivage = form.elements['archivage'].checked ? 'Oui' : 'Non';
+  DELAY_FIELDS.forEach(f=>{ rec[f[0]] = rec[f[0]] || null; });
+
+  if(!rec.id || !rec.client){ alert('ID et Client sont obligatoires.'); return; }
+
+  if(editingDocId){
+    await setDoc(doc(db,'dossiers', editingDocId), rec, {merge:true});
+  } else {
+    await addDoc(dossiersCol, rec);
+  }
+  closeModal();
+});
+
+document.getElementById('btnDelete').addEventListener('click', async ()=>{
+  if(!editingDocId) return;
+  if(!confirm('Supprimer définitivement ce dossier ?')) return;
+  await deleteDoc(doc(db,'dossiers', editingDocId));
+  closeModal();
+});
+
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const rows = currentView();
+  const cols = ['id','client','commune','statut','priorite','statutUrb','depot','dateLimite','joursRestants','otake','tarifHT'];
+  const header = ['ID','Client','Commune','Statut','Priorité','Urbanisme','Dépôt','Date limite','Jours restants','Otaké','Tarif HT'];
+  const csv = [header.join(';')].concat(rows.map(r=>cols.map(c=>{
+    let v = r[c]; if(v===null||v===undefined) v='';
+    v = String(v).replace(/;/g,',');
+    return v;
+  }).join(';'))).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dossiers_permis_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+});
+
+setInterval(renderAll, 60000);
+
+// ---------- Firebase auth + sync ----------
+const loginGate = document.getElementById('loginGate');
+const dashboardRoot = document.getElementById('dashboardRoot');
+const loginError = document.getElementById('loginError');
+
+document.getElementById('btnGoogleSignIn').addEventListener('click', async ()=>{
+  loginError.textContent = '';
+  try{
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  }catch(err){
+    loginError.textContent = "Échec de connexion : " + err.message;
+  }
+});
+
+document.getElementById('btnSignOut').addEventListener('click', async ()=>{
+  if(unsubscribe) unsubscribe();
+  await signOut(auth);
+});
+
+// One-time admin helper: invoked manually once (via DevTools/console) to import
+// existing dossiers into Firestore. Never embeds real client data in this file.
+window.__adminSeed = async function(list){
+  if(!Array.isArray(list) || !list.length) throw new Error('list vide');
+  const CHUNK = 400;
+  let written = 0;
+  for(let i=0;i<list.length;i+=CHUNK){
+    const batch = writeBatch(db);
+    list.slice(i,i+CHUNK).forEach(rec=>{
+      const ref = doc(dossiersCol);
+      batch.set(ref, rec);
+    });
+    await batch.commit();
+    written += Math.min(CHUNK, list.length-i);
+  }
+  await setDoc(metaDocRef, {seeded:true, at: new Date().toISOString(), count: list.length});
+  return written;
+};
+window.__countDossiers = async function(){
+  const snap = await getDocs(dossiersCol);
+  return snap.size;
+};
+
+function startSync(){
+  populateFilters();
+  unsubscribe = onSnapshot(dossiersCol, snap=>{
+    DATA = snap.docs.map(d=>Object.assign({_docId:d.id}, d.data()));
+    renderAll();
+    document.getElementById('syncDot').style.background = 'var(--green)';
+    document.getElementById('syncLabel').textContent = 'Synchronisé';
+  }, err=>{
+    document.getElementById('syncDot').style.background = 'var(--red)';
+    document.getElementById('syncLabel').textContent = 'Erreur de synchronisation';
+    console.error(err);
+  });
+}
+
+onAuthStateChanged(auth, async (user)=>{
+  if(user && user.email === ALLOWED_EMAIL){
+    loginGate.classList.add('hidden');
+    dashboardRoot.classList.remove('hidden');
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    document.getElementById('userPhoto').src = user.photoURL || '';
+    startSync();
+  } else if(user){
+    loginError.textContent = "Ce compte (" + user.email + ") n'est pas autorisé à accéder à ce tableau de bord.";
+    await signOut(auth);
+    loginGate.classList.remove('hidden');
+    dashboardRoot.classList.add('hidden');
+  } else {
+    loginGate.classList.remove('hidden');
+    dashboardRoot.classList.add('hidden');
+    if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+  }
+});
+</script>
+</body>
+</html>
