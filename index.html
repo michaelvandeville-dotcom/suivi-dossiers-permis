@@ -131,6 +131,7 @@
     <p>Connectez-vous avec le compte Google autoris&eacute; pour acc&eacute;der au tableau de bord, synchronis&eacute; en temps r&eacute;el entre tous vos appareils.</p>
     <button class="primary" id="btnGoogleSignIn">Se connecter avec Google</button>
     <p class="login-error" id="loginError"></p>
+    <button id="btnGoogleSignInRedirect" class="small" style="margin-top:10px;width:100%;">Bloqu&eacute; ? Essayer une autre m&eacute;thode</button>
   </div>
 </div>
 
@@ -298,7 +299,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
@@ -614,12 +615,27 @@ const loginError = document.getElementById('loginError');
 
 document.getElementById('btnGoogleSignIn').addEventListener('click', async ()=>{
   loginError.textContent = '';
+  const provider = new GoogleAuthProvider();
   try{
-    const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   }catch(err){
-    loginError.textContent = "Échec de connexion : " + err.message;
+    if(err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/operation-not-supported-in-this-environment'){
+      try{ await signInWithRedirect(auth, provider); }
+      catch(err2){ loginError.textContent = "Échec de connexion : " + err2.message; }
+    } else {
+      loginError.textContent = "Échec de connexion : " + err.message;
+    }
   }
+});
+
+document.getElementById('btnGoogleSignInRedirect').addEventListener('click', async ()=>{
+  loginError.textContent = '';
+  try{ await signInWithRedirect(auth, new GoogleAuthProvider()); }
+  catch(err){ loginError.textContent = "Échec de connexion : " + err.message; }
+});
+
+getRedirectResult(auth).catch(err=>{
+  if(err) loginError.textContent = "Échec de connexion : " + err.message;
 });
 
 document.getElementById('btnSignOut').addEventListener('click', async ()=>{
