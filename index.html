@@ -61,6 +61,23 @@
   .spacer{flex:1;}
 
   .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:640px;}
+  .card-list{display:none;flex-direction:column;gap:10px;}
+  @media(max-width:760px){
+    .table-wrap{display:none;}
+    .card-list{display:flex;}
+  }
+  .dossier-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .dossier-card.archived{opacity:.55;}
+  .dossier-card .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .dossier-card .card-client{font-weight:700;font-size:15px;line-height:1.3;}
+  .dossier-card .card-id{color:var(--muted);font-size:11.5px;margin-top:1px;}
+  .dossier-card .card-commune{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .dossier-card .card-badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+  .dossier-card .card-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12.5px;margin-bottom:10px;}
+  .dossier-card .card-meta div span.lbl{color:var(--muted);display:block;font-size:11px;}
+  .dossier-card .card-actions{display:flex;gap:8px;border-top:1px solid #eef0f3;padding-top:10px;}
+  .dossier-card .card-actions button{flex:1;}
+  .dossier-card .card-link{margin-bottom:8px;}
   table{border-collapse:collapse;width:100%;font-size:12.8px;}
   thead th{
     position:sticky;top:0;background:#fafbfc;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);
@@ -195,6 +212,8 @@
       <tbody id="tbody"></tbody>
     </table>
   </div>
+
+  <div class="card-list" id="cardList"></div>
 
   <div class="footnote">
     Donn&eacute;es stock&eacute;es dans Firebase (Google) et synchronis&eacute;es en temps r&eacute;el entre tous vos appareils connect&eacute;s avec ce compte Google. Les jours restants et indicateurs se recalculent automatiquement &agrave; chaque ouverture. Emails et mots de passe des portails GNAU/guichet unique ne sont volontairement pas repris ici pour des raisons de s&eacute;curit&eacute;. Acc&egrave;s restreint &agrave; michael.vandeville@gmail.com.
@@ -431,26 +450,81 @@ function renderKPIs(){
   ).join('');
 }
 
+function rowVisuals(r){
+  const urbClass = r.statutUrb==='En cours'?'u-EnCours':r.statutUrb==='Accordé'?'u-Accordé':r.statutUrb==='Refusé'?'u-Refusé':'u-none';
+  const prioClass = r.priorite==='Élevée'?'p-Élevée':r.priorite==='Faible'?'p-Faible':'p-Normale';
+  const statClass = 'b-'+r.statut;
+  let jrHtml = '<span class="jr jr-none">—</span>';
+  if(r.joursRestants!==null && r.joursRestants!==undefined){
+    const cls = 'jr-'+r.urgency;
+    const txt = r.joursRestants<0 ? (Math.abs(r.joursRestants)+' j de retard') : (r.joursRestants+' j');
+    jrHtml = `<span class="jr ${cls}">${txt}</span>`;
+  }
+  let lienHtml = '—';
+  let lienHtmlFull = '—';
+  if(r.lienGnau){
+    const v = r.lienGnau.trim();
+    if(/^https?:\/\//i.test(v)){
+      lienHtml = `<a class="link" href="${esc(v)}" target="_blank" rel="noopener">Portail &rarr;</a>`;
+      lienHtmlFull = lienHtml;
+    } else {
+      lienHtml = `<span class="txt-muted" title="${esc(v)}">${esc(v.slice(0,18))}${v.length>18?'…':''}</span>`;
+      lienHtmlFull = `<span class="txt-muted">${esc(v)}</span>`;
+    }
+  }
+  return {urbClass, prioClass, statClass, jrHtml, lienHtml, lienHtmlFull};
+}
+
+function renderCards(rows){
+  const cardList = document.getElementById('cardList');
+  cardList.innerHTML = rows.map(r=>{
+    const v = rowVisuals(r);
+    return `<div class="dossier-card ${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
+      <div class="card-top">
+        <div>
+          <div class="card-client">${esc(r.client)}</div>
+          <div class="card-id">${esc(r.id)}</div>
+          <div class="card-commune">${esc(r.commune||'—')}</div>
+        </div>
+        ${v.jrHtml}
+      </div>
+      <div class="card-badges">
+        <span class="badge ${v.statClass}">${esc(r.statut||'—')}</span>
+        <span class="badge ${v.prioClass}">${esc(r.priorite||'—')}</span>
+        <span class="badge ${v.urbClass}">${esc(r.statutUrb||'—')}</span>
+      </div>
+      <div class="card-meta">
+        <div><span class="lbl">Dépôt</span>${fmtDate(r.depot)}</div>
+        <div><span class="lbl">Limite</span>${fmtDate(r.dateLimite)}</div>
+        <div><span class="lbl">Otaké</span>${esc(r.otake||'—')}</div>
+        <div><span class="lbl">Tarif HT</span>${euros(r.tarifHT)}</div>
+      </div>
+      <div class="card-link">${v.lienHtmlFull}</div>
+      <div class="card-actions">
+        <button class="small btn-edit">Modifier</button>
+        <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
+      </div>
+    </div>`;
+  }).join('') || `<div style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</div>`;
+
+  cardList.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
+    const docId = e.target.closest('[data-docid]').dataset.docid;
+    openModal(DATA.find(d=>d._docId===docId));
+  }));
+  cardList.querySelectorAll('.btn-archive').forEach(b=>b.addEventListener('click', async e=>{
+    const docId = e.target.closest('[data-docid]').dataset.docid;
+    const rec = DATA.find(d=>d._docId===docId);
+    await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
+  }));
+}
+
 function renderTable(){
   const rows = currentView();
   document.getElementById('countPill').textContent = rows.length + ' dossier(s) affiché(s)';
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = rows.map(r=>{
-    const urbClass = r.statutUrb==='En cours'?'u-EnCours':r.statutUrb==='Accordé'?'u-Accordé':r.statutUrb==='Refusé'?'u-Refusé':'u-none';
-    const prioClass = r.priorite==='Élevée'?'p-Élevée':r.priorite==='Faible'?'p-Faible':'p-Normale';
-    const statClass = 'b-'+r.statut;
-    let jrHtml = '<span class="jr jr-none">—</span>';
-    if(r.joursRestants!==null && r.joursRestants!==undefined){
-      const cls = 'jr-'+r.urgency;
-      const txt = r.joursRestants<0 ? (Math.abs(r.joursRestants)+' j de retard') : (r.joursRestants+' j');
-      jrHtml = `<span class="jr ${cls}">${txt}</span>`;
-    }
-    let lienHtml = '—';
-    if(r.lienGnau){
-      const v = r.lienGnau.trim();
-      if(/^https?:\/\//i.test(v)) lienHtml = `<a class="link" href="${esc(v)}" target="_blank" rel="noopener">Portail &rarr;</a>`;
-      else lienHtml = `<span class="txt-muted" title="${esc(v)}">${esc(v.slice(0,18))}${v.length>18?'…':''}</span>`;
-    }
+    const v = rowVisuals(r);
+    const urbClass = v.urbClass, prioClass = v.prioClass, statClass = v.statClass, jrHtml = v.jrHtml, lienHtml = v.lienHtml;
     return `<tr class="${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
       <td>${esc(r.id)}</td>
       <td title="${esc(r.commentaires||'')}">${esc(r.client)}</td>
@@ -480,6 +554,8 @@ function renderTable(){
     const rec = DATA.find(d=>d._docId===docId);
     await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
   }));
+
+  renderCards(rows);
 }
 
 function mkChart(canvasId, type, labels, datasets, small){
