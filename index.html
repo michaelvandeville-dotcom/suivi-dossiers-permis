@@ -207,6 +207,7 @@
           <th data-key="joursRestants">Jours restants</th>
           <th data-key="otake">Otak&eacute;</th>
           <th data-key="tarifHT">Tarif HT</th>
+          <th data-key="email">Email</th>
           <th>Lien</th>
           <th>Actions</th>
         </tr>
@@ -297,6 +298,9 @@
         </label>
         <label class="full">Lien GNAU / guichet unique
           <input type="text" name="lienGnau">
+        </label>
+        <label class="full">Email client
+          <input type="email" name="email">
         </label>
         <label class="full">To do
           <input type="text" name="todo">
@@ -479,7 +483,12 @@ function rowVisuals(r){
       lienHtmlFull = `<span class="txt-muted">${esc(v)}</span>`;
     }
   }
-  return {urbClass, prioClass, statClass, jrHtml, lienHtml, lienHtmlFull};
+  let emailHtml = '—';
+  if(r.email){
+    emailHtml = `<a class="link" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`;
+  }
+
+  return {urbClass, prioClass, statClass, jrHtml, lienHtml, lienHtmlFull, emailHtml};
 }
 
 function renderCards(rows){
@@ -506,6 +515,7 @@ function renderCards(rows){
         <div><span class="lbl">Otaké</span>${esc(r.otake||'—')}</div>
         <div><span class="lbl">Tarif HT</span>${euros(r.tarifHT)}</div>
       </div>
+      <div class="card-link">${v.emailHtml}</div>
       <div class="card-link">${v.lienHtmlFull}</div>
       <div class="card-actions">
         <button class="small btn-edit">Modifier</button>
@@ -544,13 +554,14 @@ function renderTable(){
       <td>${jrHtml}</td>
       <td>${esc(r.otake||'—')}</td>
       <td>${euros(r.tarifHT)}</td>
+      <td>${v.emailHtml}</td>
       <td>${lienHtml}</td>
       <td class="actions-cell">
         <button class="small btn-edit">Modifier</button>
         <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
+  }).join('') || `<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
 
   tbody.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
     const docId = e.target.closest('tr').dataset.docid;
@@ -649,7 +660,7 @@ modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
 document.getElementById('btnSave').addEventListener('click', async ()=>{
   const fd = new FormData(form);
   const rec = {};
-  ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','todo','commentaires'].forEach(k=>{
+  ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','email','todo','commentaires'].forEach(k=>{
     rec[k] = fd.get(k) || null;
   });
   rec.tarifHT = fd.get('tarifHT') ? Number(fd.get('tarifHT')) : null;
@@ -675,8 +686,8 @@ document.getElementById('btnDelete').addEventListener('click', async ()=>{
 
 document.getElementById('btnExport').addEventListener('click', ()=>{
   const rows = currentView();
-  const cols = ['id','client','commune','statut','priorite','statutUrb','depot','dateLimite','joursRestants','otake','tarifHT'];
-  const header = ['ID','Client','Commune','Statut','Priorité','Urbanisme','Dépôt','Date limite','Jours restants','Otaké','Tarif HT'];
+  const cols = ['id','client','commune','statut','priorite','statutUrb','depot','dateLimite','joursRestants','otake','tarifHT','email'];
+  const header = ['ID','Client','Commune','Statut','Priorité','Urbanisme','Dépôt','Date limite','Jours restants','Otaké','Tarif HT','Email'];
   const csv = [header.join(';')].concat(rows.map(r=>cols.map(c=>{
     let v = r[c]; if(v===null||v===undefined) v='';
     v = String(v).replace(/;/g,',');
@@ -747,6 +758,30 @@ window.__adminSeed = async function(list){
 window.__countDossiers = async function(){
   const snap = await getDocs(dossiersCol);
   return snap.size;
+};
+
+// One-time admin helper: patches the "email" field on existing docs, matched by
+// dossier id. Does not touch any other field. Used to backfill data that was
+// intentionally left out of the initial import.
+window.__adminBackfillField = async function(list, field){
+  if(!Array.isArray(list) || !list.length) throw new Error('list vide');
+  const snap = await getDocs(dossiersCol);
+  const byId = {};
+  snap.docs.forEach(d=>{ const v = d.data(); if(v.id) byId[v.id] = d.id; });
+  let updated = 0, skipped = 0;
+  const CHUNK = 400;
+  for(let i=0;i<list.length;i+=CHUNK){
+    const batch = writeBatch(db);
+    let n = 0;
+    list.slice(i,i+CHUNK).forEach(rec=>{
+      const docId = byId[rec.id];
+      if(!docId || !rec[field]) { skipped++; return; }
+      batch.update(doc(db,'dossiers',docId), {[field]: rec[field]});
+      n++;
+    });
+    if(n){ await batch.commit(); updated += n; }
+  }
+  return {updated, skipped, total:list.length};
 };
 
 function startSync(){
