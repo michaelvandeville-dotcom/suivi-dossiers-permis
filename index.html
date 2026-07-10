@@ -111,6 +111,9 @@
   .jr-none{color:var(--muted);}
   a.link{color:var(--blue);text-decoration:none;font-size:12px;}
   a.link:hover{text-decoration:underline;}
+  .pwd-cell{display:flex;align-items:center;gap:6px;}
+  .pwd-mask{font-family:monospace;letter-spacing:1px;}
+  .btn-pwd-toggle{padding:2px 7px;font-size:11px;}
   .txt-muted{color:var(--muted);font-size:12px;}
   .actions-cell{display:flex;gap:6px;}
 
@@ -208,6 +211,7 @@
           <th data-key="otake">Otak&eacute;</th>
           <th data-key="tarifHT">Tarif HT</th>
           <th data-key="email">Email</th>
+          <th>Mot de passe</th>
           <th>Lien</th>
           <th>Actions</th>
         </tr>
@@ -301,6 +305,9 @@
         </label>
         <label class="full">Email client
           <input type="email" name="email">
+        </label>
+        <label class="full">Mot de passe portail (GNAU / guichet unique)
+          <input type="text" name="motDePasse" autocomplete="off">
         </label>
         <label class="full">To do
           <input type="text" name="todo">
@@ -516,6 +523,7 @@ function renderCards(rows){
         <div><span class="lbl">Tarif HT</span>${euros(r.tarifHT)}</div>
       </div>
       <div class="card-link">${v.emailHtml}</div>
+      ${r.motDePasse ? `<div class="card-link pwd-cell" data-pwd="${esc(r.motDePasse)}"><span class="lbl" style="color:var(--muted);font-size:11px;">Mot de passe&nbsp;</span><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : ''}
       <div class="card-link">${v.lienHtmlFull}</div>
       <div class="card-actions">
         <button class="small btn-edit">Modifier</button>
@@ -532,6 +540,13 @@ function renderCards(rows){
     const docId = e.target.closest('[data-docid]').dataset.docid;
     const rec = DATA.find(d=>d._docId===docId);
     await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
+  }));
+  cardList.querySelectorAll('.btn-pwd-toggle').forEach(b=>b.addEventListener('click', e=>{
+    const cell = e.target.closest('.pwd-cell');
+    const mask = cell.querySelector('.pwd-mask');
+    const showing = mask.textContent !== '••••••••';
+    mask.textContent = showing ? '••••••••' : cell.dataset.pwd;
+    e.target.textContent = showing ? 'Afficher' : 'Masquer';
   }));
 }
 
@@ -555,13 +570,14 @@ function renderTable(){
       <td>${esc(r.otake||'—')}</td>
       <td>${euros(r.tarifHT)}</td>
       <td>${v.emailHtml}</td>
+      <td>${r.motDePasse ? `<div class="pwd-cell" data-pwd="${esc(r.motDePasse)}"><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : '—'}</td>
       <td>${lienHtml}</td>
       <td class="actions-cell">
         <button class="small btn-edit">Modifier</button>
         <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
+  }).join('') || `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
 
   tbody.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
     const docId = e.target.closest('tr').dataset.docid;
@@ -571,6 +587,13 @@ function renderTable(){
     const docId = e.target.closest('tr').dataset.docid;
     const rec = DATA.find(d=>d._docId===docId);
     await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
+  }));
+  tbody.querySelectorAll('.btn-pwd-toggle').forEach(b=>b.addEventListener('click', e=>{
+    const cell = e.target.closest('.pwd-cell');
+    const mask = cell.querySelector('.pwd-mask');
+    const showing = mask.textContent !== '••••••••';
+    mask.textContent = showing ? '••••••••' : cell.dataset.pwd;
+    e.target.textContent = showing ? 'Afficher' : 'Masquer';
   }));
 
   renderCards(rows);
@@ -660,7 +683,7 @@ modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
 document.getElementById('btnSave').addEventListener('click', async ()=>{
   const fd = new FormData(form);
   const rec = {};
-  ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','email','todo','commentaires'].forEach(k=>{
+  ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','email','motDePasse','todo','commentaires'].forEach(k=>{
     rec[k] = fd.get(k) || null;
   });
   rec.tarifHT = fd.get('tarifHT') ? Number(fd.get('tarifHT')) : null;
