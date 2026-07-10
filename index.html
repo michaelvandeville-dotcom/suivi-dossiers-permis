@@ -35,8 +35,8 @@
   button.danger{color:var(--red);}
   button.small{padding:4px 9px;font-size:12px;}
 
-  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px;}
-  @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr);}}
+  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:18px;}
+  @media(max-width:1300px){.kpis{grid-template-columns:repeat(4,1fr);}}
   @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr);}}
   .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 14px;}
   .kpi .val{font-size:22px;font-weight:700;line-height:1.1;}
@@ -183,6 +183,7 @@
     <select id="filterStatut"><option value="">Tous statuts</option></select>
     <select id="filterPriorite"><option value="">Toutes priorit&eacute;s</option></select>
     <select id="filterUrb"><option value="">Toute instruction</option></select>
+    <select id="filterOtake"><option value="">Otak&eacute; : tous</option><option value="Oui">Otak&eacute; : Oui</option><option value="Non">Otak&eacute; : Non</option><option value="__none__">Otak&eacute; : non renseign&eacute;</option></select>
     <label><input type="checkbox" id="showArchived"> Afficher les archiv&eacute;s</label>
     <span class="spacer"></span>
     <span class="count-pill" id="countPill"></span>
@@ -403,6 +404,7 @@ function currentView(){
   const fS = document.getElementById('filterStatut').value;
   const fP = document.getElementById('filterPriorite').value;
   const fU = document.getElementById('filterUrb').value;
+  const fO = document.getElementById('filterOtake').value;
   const showArchived = document.getElementById('showArchived').checked;
 
   let rows = DATA.map(computeDerived);
@@ -411,6 +413,7 @@ function currentView(){
   if(fS) rows = rows.filter(r=>r.statut===fS);
   if(fP) rows = rows.filter(r=>r.priorite===fP);
   if(fU) rows = rows.filter(r=> fU==='__none__' ? !r.statutUrb : r.statutUrb===fU);
+  if(fO) rows = rows.filter(r=> fO==='__none__' ? !r.otake : r.otake===fO);
 
   rows.sort((a,b)=>{
     let av = a[sortKey], bv = b[sortKey];
@@ -436,6 +439,8 @@ function renderKPIs(){
   const retard = active.filter(r=>r.urgency==='retard').length;
   const urgent = active.filter(r=>r.urgency==='urgent').length;
   const ca = active.reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
+  const otakeCount = DATA.filter(d=>d.otake==='Oui').length;
+  const otakePct = total ? Math.round((otakeCount/total)*1000)/10 : 0;
 
   const items = [
     {lbl:'Dossiers actifs', val: active.length, cls:''},
@@ -444,6 +449,7 @@ function renderKPIs(){
     {lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
     {lbl:'CA actif HT', val: ca.toLocaleString('fr-FR')+' €', cls:''},
     {lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:''},
+    {lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:''},
   ];
   document.getElementById('kpis').innerHTML = items.map(it=>
     `<div class="kpi ${it.cls}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
@@ -612,7 +618,7 @@ document.querySelectorAll('thead th[data-key]').forEach(th=>{
   });
 });
 
-['search','filterStatut','filterPriorite','filterUrb','showArchived'].forEach(id=>{
+['search','filterStatut','filterPriorite','filterUrb','filterOtake','showArchived'].forEach(id=>{
   document.getElementById(id).addEventListener('input', renderTable);
   document.getElementById(id).addEventListener('change', renderTable);
 });
