@@ -810,6 +810,17 @@ window.__countDossiers = async function(){
   return snap.size;
 };
 
+// Debug-only helper: lets the owner preview the architect's read-only filtered
+// view from their own signed-in session, without needing a second Google
+// account. Purely a client-side UI preview; server-side Firestore rules are
+// the real enforcement and are unaffected by this.
+window.__previewRole = function(r){
+  ROLE = r;
+  document.body.classList.toggle('role-architect', r === 'architect');
+  startSync();
+  return 'preview role = ' + r;
+};
+
 // One-time admin helper: patches the "email" field on existing docs, matched by
 // dossier id. Does not touch any other field. Used to backfill data that was
 // intentionally left out of the initial import.
