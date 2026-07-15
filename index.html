@@ -146,6 +146,18 @@
   #dashboardRoot.hidden{display:none;}
   .user-chip{display:flex;align-items:center;gap:6px;}
   .user-chip img{width:22px;height:22px;border-radius:50%;}
+  .role-badge{background:var(--blue-bg);color:var(--blue);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;}
+  .role-badge.hidden{display:none;}
+  body.role-architect [data-col="otake"],
+  body.role-architect [data-col="tarifHT"],
+  body.role-architect [data-col="motDePasse"],
+  body.role-architect [data-col="lien"],
+  body.role-architect [data-col="actions"],
+  body.role-architect #filterOtake,
+  body.role-architect #btnAdd,
+  body.role-architect #btnExport,
+  body.role-architect #kpis,
+  body.role-architect .charts{ display:none !important; }
 </style>
 </head>
 <body>
@@ -172,6 +184,7 @@
       <span>&middot;</span>
       <span id="lastUpdate">--:--</span>
       <span>&middot;</span>
+      <span class="role-badge hidden" id="roleBadge"></span>
       <span class="user-chip"><img id="userPhoto" src="" alt=""><span id="userName"></span></span>
       <button id="btnSignOut" class="small">D&eacute;connexion</button>
     </div>
@@ -203,21 +216,21 @@
     <table id="table">
       <thead>
         <tr>
-          <th>Actions</th>
-          <th data-key="id">ID</th>
-          <th data-key="client">Client</th>
-          <th data-key="commune">Commune</th>
-          <th data-key="statut">Statut</th>
-          <th data-key="priorite">Priorit&eacute;</th>
-          <th data-key="statutUrb">Urbanisme</th>
-          <th data-key="depot">D&eacute;p&ocirc;t</th>
-          <th data-key="dateLimite">Limite</th>
-          <th data-key="joursRestants">Jours restants</th>
-          <th data-key="otake">Otak&eacute;</th>
-          <th data-key="tarifHT">Tarif HT</th>
-          <th data-key="email">Email</th>
-          <th>Mot de passe</th>
-          <th>Lien</th>
+          <th data-col="actions">Actions</th>
+          <th data-key="id" data-col="id">ID</th>
+          <th data-key="client" data-col="client">Client</th>
+          <th data-key="commune" data-col="commune">Commune</th>
+          <th data-key="statut" data-col="statut">Statut</th>
+          <th data-key="priorite" data-col="priorite">Priorit&eacute;</th>
+          <th data-key="statutUrb" data-col="statutUrb">Urbanisme</th>
+          <th data-key="depot" data-col="depot">D&eacute;p&ocirc;t</th>
+          <th data-key="dateLimite" data-col="dateLimite">Limite</th>
+          <th data-key="joursRestants" data-col="joursRestants">Jours restants</th>
+          <th data-key="otake" data-col="otake">Otak&eacute;</th>
+          <th data-key="tarifHT" data-col="tarifHT">Tarif HT</th>
+          <th data-key="email" data-col="email">Email</th>
+          <th data-col="motDePasse">Mot de passe</th>
+          <th data-col="lien">Lien</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -339,7 +352,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, writeBatch, getDocs, query
+  onSnapshot, writeBatch, getDocs, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -352,6 +365,8 @@ const firebaseConfig = {
 };
 
 const ALLOWED_EMAIL = "michael.vandeville@gmail.com";
+const ARCHITECT_EMAIL = "otake.duhayon@gmail.com";
+let ROLE = null; // 'owner' | 'architect'
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -523,13 +538,13 @@ function renderCards(rows){
       <div class="card-meta">
         <div><span class="lbl">Dépôt</span>${fmtDate(r.depot)}</div>
         <div><span class="lbl">Limite</span>${fmtDate(r.dateLimite)}</div>
-        <div><span class="lbl">Otaké</span>${esc(r.otake||'—')}</div>
-        <div><span class="lbl">Tarif HT</span>${euros(r.tarifHT)}</div>
+        <div data-col="otake"><span class="lbl">Otaké</span>${esc(r.otake||'—')}</div>
+        <div data-col="tarifHT"><span class="lbl">Tarif HT</span>${euros(r.tarifHT)}</div>
       </div>
-      <div class="card-link">${v.emailHtml}</div>
-      ${r.motDePasse ? `<div class="card-link pwd-cell" data-pwd="${esc(r.motDePasse)}"><span class="lbl" style="color:var(--muted);font-size:11px;">Mot de passe&nbsp;</span><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : ''}
-      <div class="card-link">${v.lienHtmlFull}</div>
-      <div class="card-actions">
+      <div class="card-link" data-col="email">${v.emailHtml}</div>
+      ${r.motDePasse ? `<div class="card-link pwd-cell" data-col="motDePasse" data-pwd="${esc(r.motDePasse)}"><span class="lbl" style="color:var(--muted);font-size:11px;">Mot de passe&nbsp;</span><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : ''}
+      <div class="card-link" data-col="lien">${v.lienHtmlFull}</div>
+      <div class="card-actions" data-col="actions">
         <button class="small btn-edit">Modifier</button>
         <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
       </div>
@@ -537,10 +552,12 @@ function renderCards(rows){
   }).join('') || `<div style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</div>`;
 
   cardList.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
+    if(ROLE !== 'owner') return;
     const docId = e.target.closest('[data-docid]').dataset.docid;
     openModal(DATA.find(d=>d._docId===docId));
   }));
   cardList.querySelectorAll('.btn-archive').forEach(b=>b.addEventListener('click', async e=>{
+    if(ROLE !== 'owner') return;
     const docId = e.target.closest('[data-docid]').dataset.docid;
     const rec = DATA.find(d=>d._docId===docId);
     await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
@@ -562,32 +579,34 @@ function renderTable(){
     const v = rowVisuals(r);
     const urbClass = v.urbClass, prioClass = v.prioClass, statClass = v.statClass, jrHtml = v.jrHtml, lienHtml = v.lienHtml;
     return `<tr class="${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
-      <td class="actions-cell">
+      <td class="actions-cell" data-col="actions">
         <button class="small btn-edit">Modifier</button>
         <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
       </td>
-      <td>${esc(r.id)}</td>
-      <td title="${esc(r.commentaires||'')}">${esc(r.client)}</td>
-      <td>${esc(r.commune||'—')}</td>
-      <td><span class="badge ${statClass}">${esc(r.statut||'—')}</span></td>
-      <td><span class="badge ${prioClass}">${esc(r.priorite||'—')}</span></td>
-      <td><span class="badge ${urbClass}">${esc(r.statutUrb||'—')}</span></td>
-      <td>${fmtDate(r.depot)}</td>
-      <td>${fmtDate(r.dateLimite)}</td>
-      <td>${jrHtml}</td>
-      <td>${esc(r.otake||'—')}</td>
-      <td>${euros(r.tarifHT)}</td>
-      <td>${v.emailHtml}</td>
-      <td>${r.motDePasse ? `<div class="pwd-cell" data-pwd="${esc(r.motDePasse)}"><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : '—'}</td>
-      <td>${lienHtml}</td>
+      <td data-col="id">${esc(r.id)}</td>
+      <td data-col="client" title="${esc(r.commentaires||'')}">${esc(r.client)}</td>
+      <td data-col="commune">${esc(r.commune||'—')}</td>
+      <td data-col="statut"><span class="badge ${statClass}">${esc(r.statut||'—')}</span></td>
+      <td data-col="priorite"><span class="badge ${prioClass}">${esc(r.priorite||'—')}</span></td>
+      <td data-col="statutUrb"><span class="badge ${urbClass}">${esc(r.statutUrb||'—')}</span></td>
+      <td data-col="depot">${fmtDate(r.depot)}</td>
+      <td data-col="dateLimite">${fmtDate(r.dateLimite)}</td>
+      <td data-col="joursRestants">${jrHtml}</td>
+      <td data-col="otake">${esc(r.otake||'—')}</td>
+      <td data-col="tarifHT">${euros(r.tarifHT)}</td>
+      <td data-col="email">${v.emailHtml}</td>
+      <td data-col="motDePasse">${r.motDePasse ? `<div class="pwd-cell" data-pwd="${esc(r.motDePasse)}"><span class="pwd-mask">••••••••</span><button type="button" class="small btn-pwd-toggle">Afficher</button></div>` : '—'}</td>
+      <td data-col="lien">${lienHtml}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
 
   tbody.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
+    if(ROLE !== 'owner') return;
     const docId = e.target.closest('tr').dataset.docid;
     openModal(DATA.find(d=>d._docId===docId));
   }));
   tbody.querySelectorAll('.btn-archive').forEach(b=>b.addEventListener('click', async e=>{
+    if(ROLE !== 'owner') return;
     const docId = e.target.closest('tr').dataset.docid;
     const rec = DATA.find(d=>d._docId===docId);
     await updateDoc(doc(db,'dossiers',docId), { archivage: rec.archivage==='Oui' ? 'Non' : 'Oui' });
@@ -641,9 +660,11 @@ function renderCharts(){
 }
 
 function renderAll(){
-  renderKPIs();
+  if(ROLE === 'owner'){
+    renderKPIs();
+    renderCharts();
+  }
   renderTable();
-  renderCharts();
   document.getElementById('lastUpdate').textContent = 'MAJ ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 }
 
@@ -680,11 +701,12 @@ function openModal(rec){
   modal.classList.remove('hidden');
 }
 function closeModal(){ modal.classList.add('hidden'); editingDocId=null; }
-document.getElementById('btnAdd').addEventListener('click', ()=>openModal(null));
+document.getElementById('btnAdd').addEventListener('click', ()=>{ if(ROLE==='owner') openModal(null); });
 document.getElementById('btnCancel').addEventListener('click', closeModal);
 modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
 
 document.getElementById('btnSave').addEventListener('click', async ()=>{
+  if(ROLE !== 'owner') return;
   const fd = new FormData(form);
   const rec = {};
   ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','email','motDePasse','todo','commentaires'].forEach(k=>{
@@ -705,6 +727,7 @@ document.getElementById('btnSave').addEventListener('click', async ()=>{
 });
 
 document.getElementById('btnDelete').addEventListener('click', async ()=>{
+  if(ROLE !== 'owner') return;
   if(!editingDocId) return;
   if(!confirm('Supprimer définitivement ce dossier ?')) return;
   await deleteDoc(doc(db,'dossiers', editingDocId));
@@ -813,7 +836,8 @@ window.__adminBackfillField = async function(list, field){
 
 function startSync(){
   populateFilters();
-  unsubscribe = onSnapshot(dossiersCol, snap=>{
+  const src = ROLE === 'architect' ? query(dossiersCol, where('otake','==','Oui')) : dossiersCol;
+  unsubscribe = onSnapshot(src, snap=>{
     DATA = snap.docs.map(d=>Object.assign({_docId:d.id}, d.data()));
     renderAll();
     document.getElementById('syncDot').style.background = 'var(--green)';
@@ -826,7 +850,16 @@ function startSync(){
 }
 
 onAuthStateChanged(auth, async (user)=>{
-  if(user && user.email === ALLOWED_EMAIL){
+  if(user && (user.email === ALLOWED_EMAIL || user.email === ARCHITECT_EMAIL)){
+    ROLE = user.email === ALLOWED_EMAIL ? 'owner' : 'architect';
+    document.body.classList.toggle('role-architect', ROLE === 'architect');
+    const roleBadge = document.getElementById('roleBadge');
+    if(ROLE === 'architect'){
+      roleBadge.textContent = 'Lecture seule · dossiers Otaké';
+      roleBadge.classList.remove('hidden');
+    } else {
+      roleBadge.classList.add('hidden');
+    }
     loginGate.classList.add('hidden');
     dashboardRoot.classList.remove('hidden');
     document.getElementById('userName').textContent = user.displayName || user.email;
@@ -838,6 +871,7 @@ onAuthStateChanged(auth, async (user)=>{
     loginGate.classList.remove('hidden');
     dashboardRoot.classList.add('hidden');
   } else {
+    ROLE = null;
     loginGate.classList.remove('hidden');
     dashboardRoot.classList.add('hidden');
     if(unsubscribe){ unsubscribe(); unsubscribe = null; }
