@@ -152,12 +152,15 @@
   body.role-architect [data-col="tarifHT"],
   body.role-architect [data-col="motDePasse"],
   body.role-architect [data-col="lien"],
-  body.role-architect [data-col="actions"],
   body.role-architect #filterOtake,
   body.role-architect #btnAdd,
   body.role-architect #btnExport,
-  body.role-architect #kpis,
-  body.role-architect .charts{ display:none !important; }
+  body.role-architect .charts,
+  body.role-architect [data-kpi="deposes"],
+  body.role-architect [data-kpi="retard"],
+  body.role-architect [data-kpi="urgent"],
+  body.role-architect [data-kpi="otakeRatio"],
+  body.role-architect .btn-archive{ display:none !important; }
 </style>
 </head>
 <body>
@@ -240,7 +243,7 @@
   <div class="card-list" id="cardList"></div>
 
   <div class="footnote">
-    Donn&eacute;es stock&eacute;es dans Firebase (Google) et synchronis&eacute;es en temps r&eacute;el entre tous vos appareils connect&eacute;s avec ce compte Google. Les jours restants et indicateurs se recalculent automatiquement &agrave; chaque ouverture. Les mots de passe portails sont masqu&eacute;s par d&eacute;faut (bouton Afficher) et exclus de l&rsquo;export CSV. Acc&egrave;s complet restreint &agrave; michael.vandeville@gmail.com ; acc&egrave;s en lecture seule aux dossiers Otak&eacute; pour l&rsquo;architecte partenaire.
+    Donn&eacute;es stock&eacute;es dans Firebase (Google) et synchronis&eacute;es en temps r&eacute;el entre tous vos appareils connect&eacute;s avec ce compte Google. Les jours restants et indicateurs se recalculent automatiquement &agrave; chaque ouverture. Les mots de passe portails sont masqu&eacute;s par d&eacute;faut (bouton Afficher) et exclus de l&rsquo;export CSV. Acc&egrave;s complet restreint &agrave; michael.vandeville@gmail.com ; l&rsquo;architecte partenaire ne voit que les dossiers Otak&eacute;, avec les KPI dossiers actifs / CA en attente / nombre de dossiers, et peut uniquement modifier le champ &laquo;&nbsp;To do&nbsp;&raquo; de chaque dossier.
   </div>
 </div>
 
@@ -469,21 +472,21 @@ function renderKPIs(){
   const deposes = active.filter(r=>r.statut==='Déposé').length;
   const retard = active.filter(r=>r.urgency==='retard').length;
   const urgent = active.filter(r=>r.urgency==='urgent').length;
-  const ca = active.reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
+  const caAttente = active.filter(r=>!r.statutUrb).reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
   const otakeCount = DATA.filter(d=>d.otake==='Oui').length;
   const otakePct = total ? Math.round((otakeCount/total)*1000)/10 : 0;
 
   const items = [
-    {lbl:'Dossiers actifs', val: active.length, cls:''},
-    {lbl:'En instruction (déposés)', val: deposes, cls:''},
-    {lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok'},
-    {lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
-    {lbl:'CA actif HT', val: ca.toLocaleString('fr-FR')+' €', cls:''},
-    {lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:''},
-    {lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:''},
+    {key:'active', lbl:'Dossiers actifs', val: active.length, cls:''},
+    {key:'deposes', lbl:'En instruction (déposés)', val: deposes, cls:''},
+    {key:'retard', lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok'},
+    {key:'urgent', lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
+    {key:'caAttente', lbl:'CA en attente', val: caAttente.toLocaleString('fr-FR')+' €', cls:''},
+    {key:'total', lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:''},
+    {key:'otakeRatio', lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:''},
   ];
   document.getElementById('kpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+    `<div class="kpi ${it.cls}" data-kpi="${it.key}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
   ).join('');
 }
 
@@ -552,7 +555,7 @@ function renderCards(rows){
   }).join('') || `<div style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</div>`;
 
   cardList.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
-    if(ROLE !== 'owner') return;
+    if(ROLE !== 'owner' && ROLE !== 'architect') return;
     const docId = e.target.closest('[data-docid]').dataset.docid;
     openModal(DATA.find(d=>d._docId===docId));
   }));
@@ -601,7 +604,7 @@ function renderTable(){
   }).join('') || `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:24px;">Aucun dossier ne correspond aux filtres.</td></tr>`;
 
   tbody.querySelectorAll('.btn-edit').forEach(b=>b.addEventListener('click', e=>{
-    if(ROLE !== 'owner') return;
+    if(ROLE !== 'owner' && ROLE !== 'architect') return;
     const docId = e.target.closest('tr').dataset.docid;
     openModal(DATA.find(d=>d._docId===docId));
   }));
@@ -660,8 +663,8 @@ function renderCharts(){
 }
 
 function renderAll(){
+  renderKPIs();
   if(ROLE === 'owner'){
-    renderKPIs();
     renderCharts();
   }
   renderTable();
@@ -689,7 +692,8 @@ function openModal(rec){
   editingDocId = rec ? rec._docId : null;
   document.getElementById('modalTitle').textContent = rec ? ('Modifier '+rec.id) : 'Nouveau dossier';
   form.reset();
-  document.getElementById('btnDelete').style.display = rec ? '' : 'none';
+  Array.from(form.elements).forEach(el=>{ el.disabled = false; });
+  document.getElementById('btnDelete').style.display = (rec && ROLE==='owner') ? '' : 'none';
   if(rec){
     Object.keys(rec).forEach(k=>{
       const el = form.elements[k];
@@ -697,6 +701,10 @@ function openModal(rec){
       if(el.type==='checkbox') el.checked = rec[k]==='Oui';
       else el.value = rec[k]===null||rec[k]===undefined ? '' : rec[k];
     });
+  }
+  if(ROLE === 'architect'){
+    document.getElementById('modalTitle').textContent = 'To do — ' + (rec ? rec.id : '');
+    Array.from(form.elements).forEach(el=>{ if(el.name !== 'todo') el.disabled = true; });
   }
   modal.classList.remove('hidden');
 }
@@ -706,7 +714,14 @@ document.getElementById('btnCancel').addEventListener('click', closeModal);
 modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
 
 document.getElementById('btnSave').addEventListener('click', async ()=>{
-  if(ROLE !== 'owner') return;
+  if(ROLE !== 'owner' && ROLE !== 'architect') return;
+  if(ROLE === 'architect'){
+    if(!editingDocId) return;
+    const todoVal = form.elements['todo'].value || null;
+    await updateDoc(doc(db,'dossiers', editingDocId), { todo: todoVal });
+    closeModal();
+    return;
+  }
   const fd = new FormData(form);
   const rec = {};
   ['id','client','commune','statut','priorite','statutUrb','otake','rdv','esquisse','validation','pret','depot','dateLimite','retour','depotRetour','lienGnau','email','motDePasse','todo','commentaires'].forEach(k=>{
@@ -866,7 +881,7 @@ onAuthStateChanged(auth, async (user)=>{
     document.body.classList.toggle('role-architect', ROLE === 'architect');
     const roleBadge = document.getElementById('roleBadge');
     if(ROLE === 'architect'){
-      roleBadge.textContent = 'Lecture seule · dossiers Otaké';
+      roleBadge.textContent = 'Dossiers Otaké · To do modifiable';
       roleBadge.classList.remove('hidden');
     } else {
       roleBadge.classList.add('hidden');
