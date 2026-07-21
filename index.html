@@ -472,12 +472,13 @@ function renderKPIs(){
   const deposes = active.filter(r=>r.statut==='Déposé').length;
   const retard = active.filter(r=>r.urgency==='retard').length;
   const urgent = active.filter(r=>r.urgency==='urgent').length;
+  const aFaire = active.filter(r=>r.statut==='Initié' || r.statut==='Esquisse').length;
   const caAttente = active.filter(r=>!r.statutUrb).reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
   const otakeCount = DATA.filter(d=>d.otake==='Oui').length;
   const otakePct = total ? Math.round((otakeCount/total)*1000)/10 : 0;
 
   const items = [
-    {key:'active', lbl:'Dossiers actifs', val: active.length, cls:''},
+    {key:'active', lbl:'Dossiers à faire', val: aFaire, cls:''},
     {key:'deposes', lbl:'En instruction (déposés)', val: deposes, cls:''},
     {key:'retard', lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok'},
     {key:'urgent', lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
