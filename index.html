@@ -47,7 +47,7 @@
   @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr);}}
   .kpis-analyse{grid-template-columns:repeat(4,1fr);}
   @media(max-width:640px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
-  .kpi{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+  .kpi{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:help;}
   .kpi .val{font-size:22px;font-weight:700;line-height:1.1;}
   .kpi .lbl{color:var(--muted);font-size:12px;margin-top:4px;}
   .kpi.alert{border-left-color:var(--red);}
@@ -529,16 +529,16 @@ function renderKPIs(){
   const otakePct = total ? Math.round((otakeCount/total)*1000)/10 : 0;
 
   const items = [
-    {key:'active', lbl:'Dossiers à faire', val: aFaire, cls:''},
-    {key:'deposes', lbl:'En instruction (déposés)', val: deposes, cls:''},
-    {key:'retard', lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok'},
-    {key:'urgent', lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok'},
-    {key:'caAttente', lbl:'CA en attente', val: caAttente.toLocaleString('fr-FR')+' €', cls:''},
-    {key:'total', lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:''},
-    {key:'otakeRatio', lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:''},
+    {key:'active', lbl:'Dossiers à faire', val: aFaire, cls:'', help:'Dossiers non archivés dont le statut est Initié ou Esquisse.'},
+    {key:'deposes', lbl:'En instruction (déposés)', val: deposes, cls:'', help:'Dossiers actifs actuellement au statut Déposé.'},
+    {key:'retard', lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok', help:'Dossiers actifs dont la date limite est dépassée alors que l\'urbanisme est toujours en cours.'},
+    {key:'urgent', lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok', help:'Dossiers actifs pour lesquels il reste 15 jours ou moins avant la date limite.'},
+    {key:'caAttente', lbl:'CA en attente', val: caAttente.toLocaleString('fr-FR')+' €', cls:'', help:'Somme des tarifs HT des dossiers non archivés dont le statut urbanisme n\'est pas encore renseigné.'},
+    {key:'total', lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:'', help:'Nombre total de dossiers enregistrés, dont ceux marqués comme archivés.'},
+    {key:'otakeRatio', lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:'', help:'Nombre de dossiers repris par Otaké, rapporté au nombre total de dossiers.'},
   ];
   document.getElementById('kpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}" data-kpi="${it.key}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+    `<div class="kpi ${it.cls}" data-kpi="${it.key}" title="${esc(it.help)}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
   ).join('');
 }
 
@@ -680,9 +680,13 @@ function renderTable(){
 function mkChart(canvasId, type, labels, datasets, small, horizontal){
   const ctx = document.getElementById(canvasId).getContext('2d');
   if(charts[canvasId]) charts[canvasId].destroy();
+  const isRadial = type === 'pie' || type === 'doughnut';
   charts[canvasId] = new Chart(ctx, {
     type, data:{labels, datasets},
-    options:{
+    options: isRadial ? {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:true, position:'right', labels:{boxWidth:10, font:{size:10.5}}}}
+    } : {
       responsive:true, maintainAspectRatio:false, indexAxis: horizontal ? 'y' : 'x',
       plugins:{legend:{display:false}},
       scales:{ x:{ ticks:{ font:{size: small?9:10}, maxRotation:small?60:0 }, beginAtZero: horizontal ? true : undefined }, y:{ beginAtZero: horizontal ? undefined : true, ticks:{font:{size:10}} } }
@@ -740,31 +744,38 @@ function renderAnalyseKpis(rows){
   const delaiMoyen = delaiPairs.length ? Math.round((delaiPairs.reduce((a,b)=>a+b,0)/delaiPairs.length)*10)/10 : null;
 
   const items = [
-    {lbl:'Dossiers dans la sélection', val: total, cls:''},
-    {lbl:'CA total (sélection)', val: ca.toLocaleString('fr-FR')+' €', cls:''},
-    {lbl:'Taux de retard', val: retardPct+'%', cls: retardPct>15?'alert':(retardPct>0?'warn':'ok')},
-    {lbl:'Délai moyen dépôt → retour', val: delaiMoyen!==null ? delaiMoyen+' j' : '—', cls:''},
+    {lbl:'Dossiers dans la sélection', val: total, cls:'', help:'Nombre de dossiers correspondant aux filtres actifs sur cette page.'},
+    {lbl:'CA total (sélection)', val: ca.toLocaleString('fr-FR')+' €', cls:'', help:'Somme des tarifs HT de tous les dossiers de la sélection filtrée.'},
+    {lbl:'Taux de retard', val: retardPct+'%', cls: retardPct>15?'alert':(retardPct>0?'warn':'ok'), help:'Part des dossiers de la sélection dont la date limite est dépassée.'},
+    {lbl:'Délai moyen dépôt → retour', val: delaiMoyen!==null ? delaiMoyen+' j' : '—', cls:'', help:'Nombre moyen de jours entre la date de dépôt et la date de retour, pour les dossiers ayant ces deux dates renseignées.'},
   ];
   document.getElementById('analyseKpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+    `<div class="kpi ${it.cls}" title="${esc(it.help)}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
   ).join('');
 }
 
 function renderAnalyseCharts(rows){
   const statutCounts = STATUTS.map(s=> rows.filter(r=>r.statut===s).length);
-  mkChart('chartStatut','bar', STATUTS, [{data:statutCounts, backgroundColor:'#2563eb'}]);
+  const statutColors = ['#9ca3af','#2563eb','#7e22ce','#c2650a','#d97706','#15803d'];
+  mkChart('chartStatut','pie', STATUTS, [{data:statutCounts, backgroundColor:statutColors}]);
   mkChart('chartFunnel','bar', STATUTS, [{data:statutCounts, backgroundColor:'#15803d'}], false, true);
 
   const urbLabels = ['En cours','Accordé','Refusé','Non renseigné'];
+  const urbColors = ['#2563eb','#15803d','#c0281c','#9ca3af'];
   const urbCounts = urbLabels.map(l=> l==='Non renseigné' ? rows.filter(r=>!r.statutUrb).length : rows.filter(r=>r.statutUrb===l).length);
-  mkChart('chartUrb','bar', urbLabels, [{data:urbCounts, backgroundColor:'#7e22ce'}]);
+  mkChart('chartUrb','pie', urbLabels, [{data:urbCounts, backgroundColor:urbColors}]);
 
-  const delayLabels = DELAY_FIELDS.map(f=>f[1]);
+  function avgDaysBetween(fromField, toField){
+    const vals = rows.filter(r=>r[fromField] && r[toField]).map(r=> daysBetween(parseDate(r[fromField]), parseDate(r[toField])));
+    if(!vals.length) return 0;
+    return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
+  }
+  const delayLabels = DELAY_FIELDS.map(f=>f[1]).concat(['RDV → Esquisse','Esquisse → Dépôt']);
   const delayVals = DELAY_FIELDS.map(f=>{
     const vals = rows.map(d=>d[f[0]]).filter(v=>v!==null && v!==undefined);
     if(!vals.length) return 0;
     return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
-  });
+  }).concat([avgDaysBetween('rdv','esquisse'), avgDaysBetween('esquisse','depot')]);
   mkChart('chartDelais','bar', delayLabels, [{data:delayVals, backgroundColor:'#c2650a'}], true);
 
   const monthMap = {};
