@@ -45,11 +45,20 @@
   .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:18px;}
   @media(max-width:1300px){.kpis{grid-template-columns:repeat(4,1fr);}}
   @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr);}}
-  .kpis-analyse{grid-template-columns:repeat(4,1fr);}
-  @media(max-width:640px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
-  .kpi{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:help;}
+  .kpis-analyse{grid-template-columns:repeat(3,1fr);}
+  @media(max-width:900px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:640px){.kpis-analyse{grid-template-columns:repeat(1,1fr);}}
+  .kpi{position:relative;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:help;}
   .kpi .val{font-size:22px;font-weight:700;line-height:1.1;}
   .kpi .lbl{color:var(--muted);font-size:12px;margin-top:4px;}
+  .kpi .kpi-tip{
+    position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:30;
+    background:#1c2230;color:#fff;font-size:11.5px;font-weight:400;line-height:1.45;
+    padding:9px 11px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.18);
+    opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s;pointer-events:none;
+  }
+  .kpi .kpi-tip::before{content:"";position:absolute;bottom:100%;left:16px;border:6px solid transparent;border-bottom-color:#1c2230;}
+  .kpi:hover .kpi-tip,.kpi:focus-within .kpi-tip{opacity:1;visibility:visible;transform:translateY(0);}
   .kpi.alert{border-left-color:var(--red);}
   .kpi.alert .val{color:var(--red);}
   .kpi.warn{border-left-color:var(--orange);}
@@ -538,7 +547,7 @@ function renderKPIs(){
     {key:'otakeRatio', lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:'', help:'Nombre de dossiers repris par Otaké, rapporté au nombre total de dossiers.'},
   ];
   document.getElementById('kpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}" data-kpi="${it.key}" title="${esc(it.help)}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+    `<div class="kpi ${it.cls}" data-kpi="${it.key}" tabindex="0"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div><div class="kpi-tip">${esc(it.help)}</div></div>`
   ).join('');
 }
 
@@ -735,22 +744,31 @@ function filteredAnalyseRows(){
   return rows;
 }
 
+function avgDaysBetweenFields(rows, fromField, toField){
+  const vals = rows.filter(r=>r[fromField] && r[toField]).map(r=> daysBetween(parseDate(r[fromField]), parseDate(r[toField])));
+  if(!vals.length) return null;
+  return Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10;
+}
+
 function renderAnalyseKpis(rows){
   const total = rows.length;
   const ca = rows.reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
   const retardCount = rows.filter(r=>r.urgency==='retard').length;
   const retardPct = total ? Math.round((retardCount/total)*1000)/10 : 0;
-  const delaiPairs = rows.filter(r=>r.depot && r.retour).map(r=> daysBetween(parseDate(r.depot), parseDate(r.retour)));
-  const delaiMoyen = delaiPairs.length ? Math.round((delaiPairs.reduce((a,b)=>a+b,0)/delaiPairs.length)*10)/10 : null;
+  const delaiMoyen = avgDaysBetweenFields(rows, 'depot', 'retour');
+  const delaiRdvEsquisse = avgDaysBetweenFields(rows, 'rdv', 'esquisse');
+  const delaiEsquisseDepot = avgDaysBetweenFields(rows, 'esquisse', 'depot');
 
   const items = [
     {lbl:'Dossiers dans la sélection', val: total, cls:'', help:'Nombre de dossiers correspondant aux filtres actifs sur cette page.'},
     {lbl:'CA total (sélection)', val: ca.toLocaleString('fr-FR')+' €', cls:'', help:'Somme des tarifs HT de tous les dossiers de la sélection filtrée.'},
     {lbl:'Taux de retard', val: retardPct+'%', cls: retardPct>15?'alert':(retardPct>0?'warn':'ok'), help:'Part des dossiers de la sélection dont la date limite est dépassée.'},
+    {lbl:'Délai moyen RDV → Esquisse', val: delaiRdvEsquisse!==null ? delaiRdvEsquisse+' j' : '—', cls:'', help:'Nombre moyen de jours entre la date de RDV et la date d\'esquisse, pour les dossiers ayant ces deux dates renseignées.'},
+    {lbl:'Délai moyen Esquisse → Dépôt', val: delaiEsquisseDepot!==null ? delaiEsquisseDepot+' j' : '—', cls:'', help:'Nombre moyen de jours entre la date d\'esquisse et la date de dépôt, pour les dossiers ayant ces deux dates renseignées.'},
     {lbl:'Délai moyen dépôt → retour', val: delaiMoyen!==null ? delaiMoyen+' j' : '—', cls:'', help:'Nombre moyen de jours entre la date de dépôt et la date de retour, pour les dossiers ayant ces deux dates renseignées.'},
   ];
   document.getElementById('analyseKpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}" title="${esc(it.help)}"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div></div>`
+    `<div class="kpi ${it.cls}" tabindex="0"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div><div class="kpi-tip">${esc(it.help)}</div></div>`
   ).join('');
 }
 
