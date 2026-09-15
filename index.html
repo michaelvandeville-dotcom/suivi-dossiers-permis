@@ -235,7 +235,7 @@
         <thead>
           <tr>
             <th data-col="actions">Actions</th>
-            <th data-key="id" data-col="id">ID</th>
+            <th data-key="id" data-col="id" class="sorted">ID</th>
             <th data-key="client" data-col="client">Client</th>
             <th data-key="commune" data-col="commune">Commune</th>
             <th data-key="statut" data-col="statut">Statut</th>
@@ -439,7 +439,7 @@ const DELAY_FIELDS = [
   ['delaiRetour','Délai Retour'],
 ];
 
-let sortKey = 'joursRestants';
+let sortKey = 'id';
 let sortDir = 1;
 let editingDocId = null;
 let charts = {};
