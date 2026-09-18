@@ -42,8 +42,7 @@
   button.danger{color:var(--red);}
   button.small{padding:4px 9px;font-size:12px;}
 
-  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:18px;}
-  @media(max-width:1300px){.kpis{grid-template-columns:repeat(4,1fr);}}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:18px;}
   @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr);}}
   .kpis-analyse{grid-template-columns:repeat(3,1fr);}
   @media(max-width:900px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
@@ -195,6 +194,7 @@
   body.role-architect [data-kpi="deposes"],
   body.role-architect [data-kpi="retard"],
   body.role-architect [data-kpi="aRelancer"],
+  body.role-architect [data-kpi="retour"],
   body.role-architect [data-kpi="otakeRatio"],
   body.role-architect .btn-archive{ display:none !important; }
 </style>
@@ -557,6 +557,10 @@ const KPI_DEFS = [
     predicate:r=> r.statut==='Esquisse' && !!r.esquisse && daysBetween(parseDate(r.esquisse), todayMidnight()) > 10,
     clsFn:n=> n>0?'warn':'ok',
     help:'Dossiers au statut Esquisse depuis plus de 10 jours sans évolution : à relancer. Cliquer pour afficher la liste.' },
+  { key:'retour', lbl:'Retour', includeArchived:false,
+    predicate:r=> r.statutUrb==='Refusé' || r.statut==='Retour',
+    clsFn:n=> n>0?'alert':'ok',
+    help:'Dossiers non archivés dont le statut urbanisme est Refusé ou dont le statut est Retour. Cliquer pour afficher la liste.' },
   { key:'caAttente', lbl:'CA en attente', includeArchived:false,
     predicate:r=> !r.statutUrb, isMoney:true,
     help:'Somme des tarifs HT des dossiers non archivés dont le statut urbanisme n\'est pas encore renseigné. Cliquer pour afficher la liste.' },
