@@ -48,7 +48,13 @@
   .kpis-analyse{grid-template-columns:repeat(3,1fr);}
   @media(max-width:900px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
   @media(max-width:640px){.kpis-analyse{grid-template-columns:repeat(1,1fr);}}
-  .kpi{position:relative;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:help;}
+  .kpi{position:relative;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:pointer;transition:box-shadow .15s,transform .15s,background .15s;}
+  #kpis .kpi:hover{box-shadow:0 4px 12px rgba(16,24,40,.1);transform:translateY(-1px);}
+  #kpis .kpi.active{background:var(--blue-bg);box-shadow:0 0 0 2px var(--blue) inset;}
+  .kpi-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blue-bg);color:var(--blue);border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;font-weight:600;}
+  .kpi-chip.hidden{display:none;}
+  .kpi-chip .chip-x{border:none;background:rgba(37,99,235,.12);color:var(--blue);width:20px;height:20px;border-radius:50%;padding:0;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .kpi-chip .chip-x:hover{background:rgba(37,99,235,.22);}
   .kpi .val{font-size:22px;font-weight:700;line-height:1.1;}
   .kpi .lbl{color:var(--muted);font-size:12px;margin-top:4px;}
   .kpi .kpi-tip{
@@ -188,7 +194,7 @@
   body.role-architect [data-page="analyse"],
   body.role-architect [data-kpi="deposes"],
   body.role-architect [data-kpi="retard"],
-  body.role-architect [data-kpi="urgent"],
+  body.role-architect [data-kpi="aRelancer"],
   body.role-architect [data-kpi="otakeRatio"],
   body.role-architect .btn-archive{ display:none !important; }
 </style>
@@ -238,6 +244,7 @@
       <select id="filterUrb"><option value="">Toute instruction</option></select>
       <select id="filterOtake"><option value="">Otak&eacute; : tous</option><option value="Oui">Otak&eacute; : Oui</option><option value="Non">Otak&eacute; : Non</option><option value="__none__">Otak&eacute; : non renseign&eacute;</option></select>
       <label><input type="checkbox" id="showArchived"> Afficher les archiv&eacute;s</label>
+      <span class="kpi-chip hidden" id="kpiFilterChip">Filtre : <span id="kpiFilterChipLabel"></span><button type="button" class="chip-x" id="kpiFilterClear" title="Retirer le filtre">&times;</button></span>
       <span class="spacer"></span>
       <span class="count-pill" id="countPill"></span>
       <button id="btnAdd" class="primary">+ Nouveau dossier</button>
@@ -460,6 +467,7 @@ let charts = {};
 let DATA = [];
 let unsubscribe = null;
 let currentPage = 'accueil';
+let activeKpiFilter = null;
 
 function todayMidnight(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
 function parseDate(s){ if(!s) return null; const d = new Date(s+'T00:00:00'); return isNaN(d) ? null : d; }
@@ -508,6 +516,10 @@ function currentView(){
 
   let rows = DATA.map(computeDerived);
   if(!showArchived) rows = rows.filter(r=>!r.isArchived);
+  if(activeKpiFilter){
+    const def = KPI_DEFS.find(k=>k.key===activeKpiFilter);
+    if(def) rows = rows.filter(def.predicate);
+  }
   if(q) rows = rows.filter(r => (r.client||'').toLowerCase().includes(q) || (r.commune||'').toLowerCase().includes(q) || (r.id||'').toLowerCase().includes(q));
   if(fS) rows = rows.filter(r=>r.statut===fS);
   if(fP) rows = rows.filter(r=>r.priorite===fP);
@@ -530,31 +542,96 @@ function currentView(){
   return rows;
 }
 
+const KPI_DEFS = [
+  { key:'active', lbl:'Dossiers à faire', includeArchived:false,
+    predicate:r=> r.statut==='Initié' || r.statut==='Esquisse',
+    help:'Dossiers non archivés dont le statut est Initié ou Esquisse. Cliquer pour afficher la liste.' },
+  { key:'deposes', lbl:'En instruction (déposés)', includeArchived:false,
+    predicate:r=> r.statut==='Déposé',
+    help:'Dossiers actifs actuellement au statut Déposé. Cliquer pour afficher la liste.' },
+  { key:'retard', lbl:'En retard (limite dépassée)', includeArchived:false,
+    predicate:r=> r.urgency==='retard',
+    clsFn:n=> n>0?'alert':'ok',
+    help:'Dossiers actifs dont la date limite est dépassée alors que l\'urbanisme est toujours en cours. Cliquer pour afficher la liste.' },
+  { key:'aRelancer', lbl:'À relancer (Esquisse &gt; 10 j)', includeArchived:false,
+    predicate:r=> r.statut==='Esquisse' && !!r.esquisse && daysBetween(parseDate(r.esquisse), todayMidnight()) > 10,
+    clsFn:n=> n>0?'warn':'ok',
+    help:'Dossiers au statut Esquisse depuis plus de 10 jours sans évolution : à relancer. Cliquer pour afficher la liste.' },
+  { key:'caAttente', lbl:'CA en attente', includeArchived:false,
+    predicate:r=> !r.statutUrb, isMoney:true,
+    help:'Somme des tarifs HT des dossiers non archivés dont le statut urbanisme n\'est pas encore renseigné. Cliquer pour afficher la liste.' },
+  { key:'total', lbl:'Dossiers au total / archivés', includeArchived:true,
+    predicate:r=> true, isTotal:true,
+    help:'Nombre total de dossiers enregistrés, dont ceux marqués comme archivés. Cliquer pour afficher tous les dossiers.' },
+  { key:'otakeRatio', lbl:'Dossiers Otaké / total', includeArchived:true,
+    predicate:r=> r.otake==='Oui', isOtake:true,
+    help:'Nombre de dossiers repris par Otaké, rapporté au nombre total de dossiers. Cliquer pour afficher les dossiers Otaké.' },
+];
+
 function renderKPIs(){
-  const active = DATA.map(computeDerived).filter(r=>!r.isArchived);
+  const allRows = DATA.map(computeDerived);
+  const active = allRows.filter(r=>!r.isArchived);
   const total = DATA.length;
   const archives = DATA.filter(d=>d.archivage==='Oui').length;
-  const deposes = active.filter(r=>r.statut==='Déposé').length;
-  const retard = active.filter(r=>r.urgency==='retard').length;
-  const urgent = active.filter(r=>r.urgency==='urgent').length;
-  const aFaire = active.filter(r=>r.statut==='Initié' || r.statut==='Esquisse').length;
-  const caAttente = active.filter(r=>!r.statutUrb).reduce((s,r)=> s + (Number(r.tarifHT)||0), 0);
-  const otakeCount = DATA.filter(d=>d.otake==='Oui').length;
-  const otakePct = total ? Math.round((otakeCount/total)*1000)/10 : 0;
 
-  const items = [
-    {key:'active', lbl:'Dossiers à faire', val: aFaire, cls:'', help:'Dossiers non archivés dont le statut est Initié ou Esquisse.'},
-    {key:'deposes', lbl:'En instruction (déposés)', val: deposes, cls:'', help:'Dossiers actifs actuellement au statut Déposé.'},
-    {key:'retard', lbl:'En retard (limite dépassée)', val: retard, cls: retard>0?'alert':'ok', help:'Dossiers actifs dont la date limite est dépassée alors que l\'urbanisme est toujours en cours.'},
-    {key:'urgent', lbl:'Urgents (≤15 j)', val: urgent, cls: urgent>0?'warn':'ok', help:'Dossiers actifs pour lesquels il reste 15 jours ou moins avant la date limite.'},
-    {key:'caAttente', lbl:'CA en attente', val: caAttente.toLocaleString('fr-FR')+' €', cls:'', help:'Somme des tarifs HT des dossiers non archivés dont le statut urbanisme n\'est pas encore renseigné.'},
-    {key:'total', lbl:'Dossiers au total / archivés', val: total+' / '+archives, cls:'', help:'Nombre total de dossiers enregistrés, dont ceux marqués comme archivés.'},
-    {key:'otakeRatio', lbl:'Dossiers Otaké / total', val: otakeCount+' / '+total+' ('+otakePct+'%)', cls:'', help:'Nombre de dossiers repris par Otaké, rapporté au nombre total de dossiers.'},
-  ];
+  const items = KPI_DEFS.map(def=>{
+    const base = def.includeArchived ? allRows : active;
+    const matched = base.filter(def.predicate);
+    let val;
+    if(def.isMoney){
+      val = matched.reduce((s,r)=> s + (Number(r.tarifHT)||0), 0).toLocaleString('fr-FR')+' €';
+    } else if(def.isTotal){
+      val = total+' / '+archives;
+    } else if(def.isOtake){
+      const pct = total ? Math.round((matched.length/total)*1000)/10 : 0;
+      val = matched.length+' / '+total+' ('+pct+'%)';
+    } else {
+      val = matched.length;
+    }
+    const cls = def.clsFn ? def.clsFn(matched.length) : '';
+    return {key:def.key, lbl:def.lbl, val, cls, help:def.help};
+  });
+
   document.getElementById('kpis').innerHTML = items.map(it=>
-    `<div class="kpi ${it.cls}" data-kpi="${it.key}" tabindex="0"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div><div class="kpi-tip">${esc(it.help)}</div></div>`
+    `<div class="kpi ${it.cls}${it.key===activeKpiFilter?' active':''}" data-kpi="${it.key}" tabindex="0" role="button"><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div><div class="kpi-tip">${esc(it.help)}</div></div>`
   ).join('');
 }
+
+function setKpiFilter(key){
+  activeKpiFilter = key;
+  const def = key ? KPI_DEFS.find(k=>k.key===key) : null;
+  document.getElementById('search').value = '';
+  document.getElementById('filterStatut').value = '';
+  document.getElementById('filterPriorite').value = '';
+  document.getElementById('filterUrb').value = '';
+  document.getElementById('filterOtake').value = '';
+  document.getElementById('showArchived').checked = !!(def && def.includeArchived);
+  const chip = document.getElementById('kpiFilterChip');
+  if(def){
+    chip.classList.remove('hidden');
+    document.getElementById('kpiFilterChipLabel').textContent = def.lbl.replace('&gt;','>');
+  } else {
+    chip.classList.add('hidden');
+  }
+  renderKPIs();
+  renderTable();
+  if(def) document.querySelector('.table-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+document.getElementById('kpis').addEventListener('click', e=>{
+  const card = e.target.closest('.kpi[data-kpi]');
+  if(!card) return;
+  const key = card.dataset.kpi;
+  setKpiFilter(activeKpiFilter === key ? null : key);
+});
+document.getElementById('kpis').addEventListener('keydown', e=>{
+  const card = e.target.closest('.kpi[data-kpi]');
+  if(!card || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  const key = card.dataset.kpi;
+  setKpiFilter(activeKpiFilter === key ? null : key);
+});
+document.getElementById('kpiFilterClear').addEventListener('click', ()=> setKpiFilter(null));
 
 function rowVisuals(r){
   const urbClass = r.statutUrb==='En cours'?'u-EnCours':r.statutUrb==='Accordé'?'u-Accordé':r.statutUrb==='Refusé'?'u-Refusé':'u-none';
