@@ -127,6 +127,26 @@
   thead th:first-child{z-index:3;background:#fafbfc;}
   tbody tr:hover td:first-child{background:#fafbfd;}
   tbody tr.archived td:first-child{background:#fff;}
+  tbody tr.row-retard,tbody tr.row-retard td:first-child{background:var(--red-bg);}
+  tbody tr.row-attention,tbody tr.row-attention td:first-child{background:var(--yellow-bg);}
+  tbody tr.row-relance,tbody tr.row-relance td:first-child,
+  tbody tr.row-urgent,tbody tr.row-urgent td:first-child{background:var(--orange-bg);}
+  tbody tr.row-ok,tbody tr.row-ok td:first-child{background:var(--green-bg);}
+  tbody tr.row-retard:hover,tbody tr.row-retard:hover td:first-child{background:#fbdcd8;}
+  tbody tr.row-attention:hover,tbody tr.row-attention:hover td:first-child{background:#fbedb0;}
+  tbody tr.row-relance:hover,tbody tr.row-relance:hover td:first-child,
+  tbody tr.row-urgent:hover,tbody tr.row-urgent:hover td:first-child{background:#ffe6c2;}
+  tbody tr.row-ok:hover,tbody tr.row-ok:hover td:first-child{background:#dbf5e3;}
+  .row-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11.5px;color:var(--muted);margin:2px 0 12px;}
+  .row-legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .row-legend .dot-retard{background:var(--red);}
+  .row-legend .dot-attention{background:var(--yellow);}
+  .row-legend .dot-relance,.row-legend .dot-urgent{background:var(--orange);}
+  .row-legend .dot-ok{background:var(--green);}
+  .dossier-card.row-retard{border-left:4px solid var(--red);background:var(--red-bg);}
+  .dossier-card.row-attention{border-left:4px solid var(--yellow);background:var(--yellow-bg);}
+  .dossier-card.row-relance,.dossier-card.row-urgent{border-left:4px solid var(--orange);background:var(--orange-bg);}
+  .dossier-card.row-ok{border-left:4px solid var(--green);background:var(--green-bg);}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;}
   .b-Initié{background:var(--grey-bg);color:#4b5563;}
   .b-Esquisse{background:var(--blue-bg);color:var(--blue);}
@@ -250,6 +270,13 @@
       <button id="btnAdd" class="primary">+ Nouveau dossier</button>
       <button id="btnExport">Exporter CSV</button>
     </section>
+
+    <div class="row-legend">
+      <span><span class="dot dot-retard"></span>En retard</span>
+      <span><span class="dot dot-attention"></span>Refusé / Retour</span>
+      <span><span class="dot dot-relance"></span>À relancer / Urgent</span>
+      <span><span class="dot dot-ok"></span>Accordé / Terminé</span>
+    </div>
 
     <div class="table-wrap">
       <table id="table">
@@ -637,6 +664,16 @@ document.getElementById('kpis').addEventListener('keydown', e=>{
 });
 document.getElementById('kpiFilterClear').addEventListener('click', ()=> setKpiFilter(null));
 
+function rowStateClass(r){
+  if(r.isArchived) return '';
+  if(r.urgency==='retard') return 'row-retard';
+  if(r.statutUrb==='Refusé' || r.statut==='Retour') return 'row-attention';
+  if(r.statut==='Esquisse' && r.esquisse && daysBetween(parseDate(r.esquisse), todayMidnight()) > 10) return 'row-relance';
+  if(r.urgency==='urgent') return 'row-urgent';
+  if(r.statutUrb==='Accordé' || r.statut==='Terminé') return 'row-ok';
+  return '';
+}
+
 function rowVisuals(r){
   const urbClass = r.statutUrb==='En cours'?'u-EnCours':r.statutUrb==='Accordé'?'u-Accordé':r.statutUrb==='Refusé'?'u-Refusé':'u-none';
   const prioClass = r.priorite==='Élevée'?'p-Élevée':r.priorite==='Faible'?'p-Faible':'p-Normale';
@@ -671,7 +708,7 @@ function renderCards(rows){
   const cardList = document.getElementById('cardList');
   cardList.innerHTML = rows.map(r=>{
     const v = rowVisuals(r);
-    return `<div class="dossier-card ${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
+    return `<div class="dossier-card ${r.isArchived?'archived':''} ${rowStateClass(r)}" data-docid="${esc(r._docId)}">
       <div class="card-top">
         <div>
           <div class="card-client">${esc(r.client)}</div>
@@ -728,7 +765,7 @@ function renderTable(){
   tbody.innerHTML = rows.map(r=>{
     const v = rowVisuals(r);
     const urbClass = v.urbClass, prioClass = v.prioClass, statClass = v.statClass, jrHtml = v.jrHtml, lienHtml = v.lienHtml;
-    return `<tr class="${r.isArchived?'archived':''}" data-docid="${esc(r._docId)}">
+    return `<tr class="${r.isArchived?'archived':''} ${rowStateClass(r)}" data-docid="${esc(r._docId)}">
       <td class="actions-cell" data-col="actions">
         <button class="small btn-edit">Modifier</button>
         <button class="small btn-archive">${r.isArchived?'Désarchiver':'Archiver'}</button>
