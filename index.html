@@ -48,8 +48,9 @@
   @media(max-width:900px){.kpis-analyse{grid-template-columns:repeat(2,1fr);}}
   @media(max-width:640px){.kpis-analyse{grid-template-columns:repeat(1,1fr);}}
   .kpi{position:relative;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:12px;padding:14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:pointer;transition:box-shadow .15s,transform .15s,background .15s;}
-  #kpis .kpi:hover{box-shadow:0 4px 12px rgba(16,24,40,.1);transform:translateY(-1px);}
-  #kpis .kpi.active{background:var(--blue-bg);box-shadow:0 0 0 2px var(--blue) inset;}
+  #kpis .kpi:hover,#finKpis .kpi[role="button"]:hover{box-shadow:0 4px 12px rgba(16,24,40,.1);transform:translateY(-1px);}
+  #kpis .kpi.active,#finKpis .kpi.active{background:var(--blue-bg);box-shadow:0 0 0 2px var(--blue) inset;}
+  #finKpis .kpi:not([role="button"]){cursor:default;}
   .kpi-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blue-bg);color:var(--blue);border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;font-weight:600;}
   .kpi-chip.hidden{display:none;}
   .kpi-chip .chip-x{border:none;background:rgba(37,99,235,.12);color:var(--blue);width:20px;height:20px;border-radius:50%;padding:0;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;}
@@ -74,6 +75,15 @@
   .charts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
   @media(max-width:1100px){.charts{grid-template-columns:repeat(2,1fr);}}
   @media(max-width:640px){.charts{grid-template-columns:1fr;}}
+  #finKpis{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));}
+  .charts-fin{grid-template-columns:repeat(3,1fr);}
+  @media(max-width:1100px){.charts-fin{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:640px){.charts-fin{grid-template-columns:1fr;}}
+  .kpi .sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .fin-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;}
+  .fin-ok{background:var(--green-bg);color:var(--green);}
+  .fin-wait{background:var(--orange-bg);color:var(--orange);}
+  #finTable thead th[data-fk]{cursor:pointer;}
   .chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;height:240px;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(16,24,40,.04);}
   .chart-card h3{font-size:12.5px;margin:0 0 8px;color:var(--muted);font-weight:600;}
   .chart-card .canvas-wrap{flex:1;position:relative;}
@@ -215,6 +225,7 @@
   body.role-architect #btnExport,
   body.role-architect .charts,
   body.role-architect [data-page="analyse"],
+  body.role-architect [data-page="finances"],
   body.role-architect [data-kpi="deposes"],
   body.role-architect [data-kpi="retard"],
   body.role-architect [data-kpi="aRelancer"],
@@ -256,6 +267,7 @@
   <nav class="page-tabs" id="pageTabs">
     <button type="button" data-page="accueil" class="active">Tableau de bord</button>
     <button type="button" data-page="analyse">Analyse</button>
+    <button type="button" data-page="finances">Finances</button>
   </nav>
 
   <div class="page" id="pageAccueil">
@@ -347,6 +359,74 @@
       <div class="chart-card"><h3>R&eacute;partition par commune (top 8)</h3><div class="canvas-wrap"><canvas id="chartCommune"></canvas></div></div>
       <div class="chart-card"><h3>Taux de retard par priorit&eacute;</h3><div class="canvas-wrap"><canvas id="chartRetardPrio"></canvas></div></div>
     </section>
+  </div>
+
+  <div class="page hidden" data-page="finances" id="pageFinances">
+    <section class="toolbar">
+      <select id="finAnnee"><option value="">Toutes ann&eacute;es</option></select>
+      <select id="finTrim"><option value="">Tous trimestres</option><option value="1">T1</option><option value="2">T2</option><option value="3">T3</option><option value="4">T4</option></select>
+      <select id="finMoyen"><option value="">Tous moyens</option><option>Esp&egrave;ces</option><option>Virement</option><option>Ch&egrave;que</option><option>Autre</option><option>Non pr&eacute;cis&eacute;</option></select>
+      <select id="finStatut"><option value="">Tous statuts</option><option>Encaiss&eacute;</option><option>&Agrave; encaisser</option></select>
+      <input type="text" id="finSearch" placeholder="Rechercher client, note...">
+      <span class="kpi-chip hidden" id="finChip">Filtre : <span id="finChipLabel"></span><button type="button" class="chip-x" id="finChipClear" title="Retirer le filtre">&times;</button></span>
+      <span class="spacer"></span>
+      <span class="count-pill" id="finMsg" style="color:var(--blue);font-weight:600"></span>
+      <span class="count-pill" id="finCountPill"></span>
+      <button id="finReset" class="small">R&eacute;initialiser</button>
+      <button id="finAdd" class="primary">+ Nouveau paiement</button>
+      <button id="finImport">Importer (JSON)</button>
+      <button id="finExport">Exporter CSV</button>
+      <input type="file" id="finImportFile" accept="application/json,.json" style="display:none">
+    </section>
+
+    <section class="kpis kpis-analyse" id="finKpis"></section>
+
+    <section class="charts charts-fin">
+      <div class="chart-card"><h3>CA et marge nette par ann&eacute;e</h3><div class="canvas-wrap"><canvas id="chartFinAn"></canvas></div></div>
+      <div class="chart-card"><h3>Cumul du CA depuis le d&eacute;but</h3><div class="canvas-wrap"><canvas id="chartFinCumul"></canvas></div></div>
+      <div class="chart-card"><h3>CA par trimestre (ann&eacute;e choisie vs pr&eacute;c&eacute;dente)</h3><div class="canvas-wrap"><canvas id="chartFinTrim"></canvas></div></div>
+      <div class="chart-card"><h3>Moyens de paiement</h3><div class="canvas-wrap"><canvas id="chartFinMoyen"></canvas></div></div>
+      <div class="chart-card"><h3>Top 8 clients</h3><div class="canvas-wrap"><canvas id="chartFinClients"></canvas></div></div>
+      <div class="chart-card"><h3>Panier moyen par ann&eacute;e</h3><div class="canvas-wrap"><canvas id="chartFinPanier"></canvas></div></div>
+    </section>
+
+    <div class="table-wrap" style="max-height:520px">
+      <table id="finTable">
+        <thead><tr>
+          <th>Actions</th>
+          <th data-fk="annee">Ann&eacute;e</th><th data-fk="trimestre">Trim.</th><th data-fk="client">Client</th>
+          <th data-fk="moyen">Moyen</th><th data-fk="montant">Montant</th><th data-fk="depense">D&eacute;pense</th>
+          <th data-fk="marge">Marge</th><th data-fk="statut">Statut</th><th data-fk="dossierId">Dossier</th><th data-fk="note">Note</th>
+        </tr></thead>
+        <tbody id="finTbody"></tbody>
+      </table>
+    </div>
+    <div class="footnote">Donn&eacute;es financi&egrave;res visibles uniquement avec le compte propri&eacute;taire. Les cotisations estim&eacute;es sont calcul&eacute;es sur le CA total encaiss&eacute; avec le taux de l'ann&eacute;e.</div>
+  </div>
+</div>
+
+<div class="modal hidden" id="modalPay">
+  <div class="modal-card">
+    <h3 id="modalPayTitle">Nouveau paiement</h3>
+    <form id="formPay">
+      <div class="form-grid">
+        <label>Ann&eacute;e<input type="number" name="annee" min="2000" max="2100" required></label>
+        <label>Trimestre<select name="trimestre"><option value="1">T1</option><option value="2">T2</option><option value="3">T3</option><option value="4">T4</option></select></label>
+        <label class="full">Client<input type="text" name="client" required></label>
+        <label>Moyen de paiement<select name="moyen"><option>Esp&egrave;ces</option><option>Virement</option><option>Ch&egrave;que</option><option>Autre</option><option>Non pr&eacute;cis&eacute;</option></select></label>
+        <label>Statut<select name="statut"><option>Encaiss&eacute;</option><option>&Agrave; encaisser</option></select></label>
+        <label>Montant (&euro;)<input type="number" name="montant" step="1" required></label>
+        <label>D&eacute;pense / r&eacute;trocession (&euro;)<input type="number" name="depense" step="1"></label>
+        <label>Reste &agrave; encaisser (&euro;)<input type="number" name="reste" step="1"></label>
+        <label>Dossier li&eacute; (optionnel)<select name="dossierId" id="payDossier"><option value="">&mdash;</option></select></label>
+        <label class="full">Note<textarea name="note"></textarea></label>
+      </div>
+    </form>
+    <div class="modal-actions">
+      <button id="payDelete" class="danger" style="margin-right:auto;display:none;">Supprimer</button>
+      <button id="payCancel">Annuler</button>
+      <button id="paySave" class="primary">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -826,7 +906,7 @@ function mkChart(canvasId, type, labels, datasets, small, horizontal){
       plugins:{legend:{display:true, position:'right', labels:{boxWidth:10, font:{size:10.5}}}}
     } : {
       responsive:true, maintainAspectRatio:false, indexAxis: horizontal ? 'y' : 'x',
-      plugins:{legend:{display:false}},
+      plugins:{legend:{display: datasets.length>1, position:'bottom', labels:{boxWidth:10, font:{size:10.5}}}},
       scales:{ x:{ ticks:{ font:{size: small?9:10}, maxRotation:small?60:0 }, beginAtZero: horizontal ? true : undefined }, y:{ beginAtZero: horizontal ? undefined : true, ticks:{font:{size:10}} } }
     }
   });
@@ -963,6 +1043,9 @@ function renderAll(){
   if(currentPage === 'analyse' && ROLE === 'owner'){
     renderAnalysePage();
   }
+  if(currentPage === 'finances' && ROLE === 'owner'){
+    renderFinancesPage();
+  }
 }
 
 document.querySelectorAll('thead th[data-key]').forEach(th=>{
@@ -982,11 +1065,13 @@ document.querySelectorAll('thead th[data-key]').forEach(th=>{
 
 // ---------- Navigation entre pages ----------
 function showPage(name){
-  if(name !== 'analyse') name = 'accueil';
-  if(name === 'analyse' && ROLE !== 'owner') name = 'accueil';
+  if(name !== 'analyse' && name !== 'finances') name = 'accueil';
+  if((name === 'analyse' || name === 'finances') && ROLE !== 'owner') name = 'accueil';
   currentPage = name;
   document.getElementById('pageAccueil').classList.toggle('hidden', name !== 'accueil');
   document.getElementById('pageAnalyse').classList.toggle('hidden', name !== 'analyse');
+  document.getElementById('pageFinances').classList.toggle('hidden', name !== 'finances');
+  if(name === 'finances') renderFinancesPage();
   document.querySelectorAll('#pageTabs button').forEach(b=> b.classList.toggle('active', b.dataset.page === name));
   if(location.hash !== '#'+name) history.replaceState(null, '', '#'+name);
   if(name === 'analyse') renderAnalysePage();
@@ -1087,6 +1172,277 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
   a.click();
 });
 
+// ---------- Page Finances (propriétaire uniquement) ----------
+const paiementsCol = collection(db, 'paiements');
+let PAY = [];
+let unsubPay = null;
+let finKpiFilter = null;
+let finSortKey = 'annee', finSortDir = -1;
+let editingPayId = null;
+const TAUX_COTIS = {2011:.231,2012:.231,2013:.231,2014:.231,2015:.231,2016:.248,2017:.247,2018:.247,2019:.239,2020:.239,2021:.239,2022:.230625,2023:.230625,2024:.230625,2025:.230625,2026:.230625};
+function tauxAn(y){ return TAUX_COTIS[y] !== undefined ? TAUX_COTIS[y] : 0.230625; }
+const fmtEur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+const FIN_KPI_PRED = {
+  depenses: r=> (r.depense||0) > 0,
+  reste: r=> r.statut === 'À encaisser',
+};
+const FIN_KPI_LABEL = {depenses:'Dépenses / rétrocessions', reste:'Reste à encaisser'};
+
+function finFiltered(opts){
+  opts = opts || {};
+  const an = document.getElementById('finAnnee').value;
+  const tr = document.getElementById('finTrim').value;
+  const mo = document.getElementById('finMoyen').value;
+  const st = document.getElementById('finStatut').value;
+  const q = document.getElementById('finSearch').value.trim().toLowerCase();
+  return PAY.filter(r=>{
+    if(!opts.skipYear && an && r.annee !== Number(an)) return false;
+    if(!opts.skipTrim && tr && r.trimestre !== Number(tr)) return false;
+    if(mo && r.moyen !== mo) return false;
+    if(st && r.statut !== st) return false;
+    if(q && !((r.client||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+const sumBy = (rows, f) => rows.reduce((s,r)=> s + (Number(f(r))||0), 0);
+
+function populateFinYears(){
+  const sel = document.getElementById('finAnnee');
+  const years = Array.from(new Set(PAY.map(r=>r.annee))).sort((a,b)=>b-a);
+  const sig = years.join(',');
+  if(sel.dataset.sig === sig) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Toutes années</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(!sel.dataset.init && years.length){ sel.value = String(years[0]); sel.dataset.init = '1'; }
+  else if(prev) sel.value = prev;
+  sel.dataset.sig = sig;
+}
+
+function renderFinKpis(rows){
+  const an = document.getElementById('finAnnee').value;
+  const ca = sumBy(rows, r=>r.montant);
+  const dep = sumBy(rows, r=>r.depense);
+  const marge = ca - dep;
+  const reste = sumBy(rows.filter(FIN_KPI_PRED.reste), r=>r.reste);
+  const cotis = rows.reduce((s,r)=> s + (r.montant||0) * tauxAn(r.annee), 0);
+  const payes = rows.filter(r=>(r.montant||0) > 0);
+  const panier = payes.length ? ca / payes.length : 0;
+  const cumul = sumBy(PAY, r=>r.montant);
+  let subCa = '';
+  if(an){
+    const prevRows = finFiltered({skipYear:true}).filter(r=>r.annee === Number(an)-1);
+    const tr = document.getElementById('finTrim').value;
+    const prevCa = sumBy(prevRows.filter(r=> !tr || r.trimestre === Number(tr)), r=>r.montant);
+    if(prevCa > 0){ const d = Math.round((ca/prevCa-1)*100); subCa = (d>=0?'+':'') + d + ' % vs ' + (Number(an)-1); }
+  }
+  const items = [
+    {key:'ca', lbl:'CA encaissé', val:fmtEur(ca), sub:subCa, cls:'', help:'Somme des montants des paiements correspondant aux filtres.'},
+    {key:'depenses', lbl:'Dépenses / rétrocessions', val:fmtEur(dep), sub:'', cls:'', help:'Sommes reversées (architecte, sous-traitants...). Cliquer pour afficher les paiements concernés.'},
+    {key:'marge', lbl:'Marge nette', val:fmtEur(marge), sub: ca? Math.round(marge/ca*100)+' % du CA':'', cls: marge>=0?'ok':'alert', help:'CA moins dépenses.'},
+    {key:'reste', lbl:'Reste à encaisser', val:fmtEur(reste), sub:'', cls: reste>0?'warn':'ok', help:'Montants signalés comme restant à encaisser (statut "À encaisser"). Cliquer pour afficher la liste.'},
+    {key:'cotis', lbl:'Cotisations estimées', val:fmtEur(cotis), sub: an ? 'taux ' + (tauxAn(Number(an))*100).toFixed(2).replace(/\.?0+$/,'') + ' %' : '', cls:'', help:'CA total encaissé multiplié par le taux de cotisation de l\'année. À provisionner.'},
+    {key:'panier', lbl:'Panier moyen', val:fmtEur(panier), sub: payes.length + ' paiement(s)', cls:'', help:'Montant moyen par paiement (hors montants nuls).'},
+    {key:'cumul', lbl:'Cumul depuis le début', val:fmtEur(cumul), sub: PAY.length + ' paiements', cls:'', help:'Total de tous les CA encaissés, toutes années confondues.'},
+  ];
+  document.getElementById('finKpis').innerHTML = items.map(it=>
+    `<div class="kpi ${it.cls}${it.key===finKpiFilter?' active':''}" data-fk="${it.key}" tabindex="0" ${FIN_KPI_PRED[it.key]?'role="button"':''}><div class="val">${it.val}</div><div class="lbl">${it.lbl}</div>${it.sub?`<div class="sub">${esc(it.sub)}</div>`:''}<div class="kpi-tip">${esc(it.help)}</div></div>`
+  ).join('');
+}
+
+function renderFinCharts(rows){
+  const allY = finFiltered({skipYear:true, skipTrim:true});
+  const years = Array.from(new Set(allY.map(r=>r.annee))).sort((a,b)=>a-b);
+  const caY = years.map(y=> sumBy(allY.filter(r=>r.annee===y), r=>r.montant));
+  const mgY = years.map(y=> sumBy(allY.filter(r=>r.annee===y), r=>r.montant-(r.depense||0)));
+  mkChart('chartFinAn','bar', years, [
+    {label:'CA', data:caY, backgroundColor:'#2563eb'},
+    {label:'Marge nette', data:mgY, backgroundColor:'#15803d'}
+  ]);
+  let run = 0;
+  mkChart('chartFinCumul','line', years, [{label:'Cumul', data:caY.map(v=> (run += v)), borderColor:'#7e22ce', backgroundColor:'rgba(126,34,206,.12)', fill:true, tension:.25}]);
+
+  const anSel = document.getElementById('finAnnee').value;
+  const yRef = anSel ? Number(anSel) : (years.length ? years[years.length-1] : new Date().getFullYear());
+  const q = n => [1,2,3,4].map(t=> sumBy(allY.filter(r=>r.annee===n && r.trimestre===t), r=>r.montant));
+  mkChart('chartFinTrim','bar', ['T1','T2','T3','T4'], [
+    {label:String(yRef), data:q(yRef), backgroundColor:'#2563eb'},
+    {label:String(yRef-1), data:q(yRef-1), backgroundColor:'#c7cbd1'}
+  ]);
+
+  const moyens = ['Espèces','Virement','Chèque','Autre','Non précisé'];
+  const mv = moyens.map(m=> sumBy(rows.filter(r=>r.moyen===m), r=>r.montant));
+  mkChart('chartFinMoyen','pie', moyens, [{data:mv, backgroundColor:['#c2650a','#2563eb','#15803d','#7e22ce','#9ca3af']}]);
+
+  const byClient = {};
+  rows.forEach(r=>{ const k=(r.client||'').trim().toLowerCase(); if(!k) return; byClient[k] = byClient[k] || {n:r.client.trim(), v:0}; byClient[k].v += r.montant||0; });
+  const top = Object.values(byClient).sort((a,b)=>b.v-a.v).slice(0,8);
+  mkChart('chartFinClients','bar', top.map(t=>t.n.length>22?t.n.slice(0,21)+'…':t.n), [{data:top.map(t=>t.v), backgroundColor:'#2563eb'}], false, true);
+
+  const panY = years.map(y=>{ const p = allY.filter(r=>r.annee===y && (r.montant||0)>0); return p.length ? Math.round(sumBy(p, r=>r.montant)/p.length) : 0; });
+  mkChart('chartFinPanier','bar', years, [{data:panY, backgroundColor:'#c2650a'}]);
+}
+
+function renderFinTable(rows){
+  const pred = finKpiFilter ? FIN_KPI_PRED[finKpiFilter] : null;
+  let list = pred ? rows.filter(pred) : rows.slice();
+  const val = r => finSortKey==='marge' ? (r.montant||0)-(r.depense||0) : r[finSortKey];
+  list.sort((a,b)=>{
+    let av = val(a), bv = val(b);
+    if(av===undefined||av===null) av=''; if(bv===undefined||bv===null) bv='';
+    if(av<bv) return -1*finSortDir; if(av>bv) return 1*finSortDir;
+    return (b.trimestre||0)-(a.trimestre||0);
+  });
+  document.getElementById('finCountPill').textContent = list.length + ' paiement(s)';
+  document.getElementById('finTbody').innerHTML = list.map(r=>`<tr data-payid="${esc(r._docId)}">
+    <td><button class="small fin-edit">Modifier</button></td>
+    <td>${r.annee}</td><td>T${r.trimestre||'?'}</td><td>${esc(r.client)}</td><td>${esc(r.moyen||'—')}</td>
+    <td>${euros(r.montant)}</td><td>${(r.depense||0)? euros(r.depense):'—'}</td><td>${euros((r.montant||0)-(r.depense||0))}</td>
+    <td><span class="fin-badge ${r.statut==='À encaisser'?'fin-wait':'fin-ok'}">${esc(r.statut||'Encaissé')}</span>${r.statut==='À encaisser'&&r.reste?' <span class="txt-muted">('+euros(r.reste)+')</span>':''}</td>
+    <td>${esc(r.dossierId||'—')}</td><td title="${esc(r.note||'')}">${esc(r.note||'')}</td></tr>`).join('')
+    || '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:24px;">Aucun paiement ne correspond aux filtres.</td></tr>';
+}
+
+function renderFinancesPage(){
+  populateFinYears();
+  const rows = finFiltered();
+  renderFinKpis(rows);
+  renderFinCharts(rows);
+  renderFinTable(rows);
+  const chip = document.getElementById('finChip');
+  chip.classList.toggle('hidden', !finKpiFilter);
+  if(finKpiFilter) document.getElementById('finChipLabel').textContent = FIN_KPI_LABEL[finKpiFilter];
+}
+
+function setFinKpi(key){
+  finKpiFilter = (key && FIN_KPI_PRED[key] && key !== finKpiFilter) ? key : null;
+  renderFinancesPage();
+  if(finKpiFilter) document.getElementById('finTable').scrollIntoView({behavior:'smooth', block:'start'});
+}
+document.getElementById('finKpis').addEventListener('click', e=>{
+  const c = e.target.closest('.kpi[data-fk]'); if(c) setFinKpi(c.dataset.fk);
+});
+document.getElementById('finKpis').addEventListener('keydown', e=>{
+  const c = e.target.closest('.kpi[data-fk]'); if(!c || (e.key!=='Enter' && e.key!==' ')) return;
+  e.preventDefault(); setFinKpi(c.dataset.fk);
+});
+document.getElementById('finChipClear').addEventListener('click', ()=> setFinKpi(null));
+['finAnnee','finTrim','finMoyen','finStatut','finSearch'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderFinancesPage);
+  document.getElementById(id).addEventListener('change', renderFinancesPage);
+});
+document.getElementById('finReset').addEventListener('click', ()=>{
+  ['finTrim','finMoyen','finStatut','finSearch'].forEach(id=> document.getElementById(id).value = '');
+  document.getElementById('finAnnee').value = '';
+  finKpiFilter = null;
+  renderFinancesPage();
+});
+document.querySelectorAll('#finTable thead th[data-fk]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.fk;
+    if(finSortKey===k) finSortDir *= -1; else { finSortKey = k; finSortDir = (k==='client'||k==='note'||k==='moyen')?1:-1; }
+    renderFinancesPage();
+  });
+});
+
+// Formulaire paiement
+const modalPay = document.getElementById('modalPay');
+const formPay = document.getElementById('formPay');
+function openPayModal(rec){
+  editingPayId = rec ? rec._docId : null;
+  document.getElementById('modalPayTitle').textContent = rec ? 'Modifier le paiement' : 'Nouveau paiement';
+  formPay.reset();
+  const sel = document.getElementById('payDossier');
+  sel.innerHTML = '<option value="">—</option>' + DATA.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))).map(d=>`<option value="${esc(d.id)}">${esc(d.id)} — ${esc(d.client)}</option>`).join('');
+  document.getElementById('payDelete').style.display = rec ? '' : 'none';
+  if(rec){
+    ['annee','trimestre','client','moyen','statut','montant','depense','reste','dossierId','note'].forEach(k=>{
+      const el = formPay.elements[k]; if(el) el.value = rec[k]===undefined||rec[k]===null ? '' : rec[k];
+    });
+  } else {
+    const an = document.getElementById('finAnnee').value;
+    formPay.elements['annee'].value = an || new Date().getFullYear();
+    formPay.elements['trimestre'].value = Math.floor(new Date().getMonth()/3)+1;
+  }
+  modalPay.classList.remove('hidden');
+}
+function closePayModal(){ modalPay.classList.add('hidden'); editingPayId = null; }
+document.getElementById('finAdd').addEventListener('click', ()=>{ if(ROLE==='owner') openPayModal(null); });
+document.getElementById('payCancel').addEventListener('click', closePayModal);
+modalPay.addEventListener('click', e=>{ if(e.target===modalPay) closePayModal(); });
+document.getElementById('finTbody').addEventListener('click', e=>{
+  const b = e.target.closest('.fin-edit'); if(!b || ROLE!=='owner') return;
+  const id = b.closest('tr').dataset.payid;
+  openPayModal(PAY.find(p=>p._docId===id));
+});
+document.getElementById('paySave').addEventListener('click', async ()=>{
+  if(ROLE !== 'owner') return;
+  const fd = new FormData(formPay);
+  const montant = Number(fd.get('montant'));
+  const client = (fd.get('client')||'').trim();
+  if(!client || isNaN(montant) || !fd.get('annee')){ alert('Année, client et montant sont obligatoires.'); return; }
+  const statut = fd.get('statut');
+  let reste = fd.get('reste') ? Number(fd.get('reste')) : 0;
+  if(statut === 'À encaisser' && !reste) reste = montant;
+  if(statut === 'Encaissé') reste = 0;
+  const rec = {
+    annee:Number(fd.get('annee')), trimestre:Number(fd.get('trimestre')), client, moyen:fd.get('moyen'),
+    montant, depense: fd.get('depense') ? Number(fd.get('depense')) : 0, statut, reste,
+    dossierId: fd.get('dossierId') || '', note: (fd.get('note')||'').trim()
+  };
+  if(editingPayId) await setDoc(doc(db,'paiements',editingPayId), rec);
+  else await addDoc(paiementsCol, rec);
+  closePayModal();
+});
+document.getElementById('payDelete').addEventListener('click', async ()=>{
+  if(ROLE !== 'owner' || !editingPayId) return;
+  if(!confirm('Supprimer définitivement ce paiement ?')) return;
+  await deleteDoc(doc(db,'paiements',editingPayId));
+  closePayModal();
+});
+
+// Import JSON (fichier choisi localement : les données ne transitent jamais par le dépôt public)
+document.getElementById('finImport').addEventListener('click', ()=>{ if(ROLE==='owner') document.getElementById('finImportFile').click(); });
+document.getElementById('finImportFile').addEventListener('change', async e=>{
+  const file = e.target.files[0]; e.target.value = '';
+  if(!file || ROLE !== 'owner') return;
+  const msg = document.getElementById('finMsg');
+  let list;
+  try{ const obj = JSON.parse(await file.text()); list = Array.isArray(obj) ? obj : obj.paiements; }
+  catch(err){ msg.textContent = 'Fichier invalide : ' + err.message; return; }
+  if(!Array.isArray(list) || !list.length){ msg.textContent = 'Aucun paiement trouvé dans ce fichier.'; return; }
+  if(PAY.length && !confirm('ATTENTION : ' + PAY.length + ' paiements existent déjà, importer ' + list.length + ' paiements de plus va créer des doublons. Continuer ?')) return;
+  msg.textContent = 'Import en cours...';
+  try{
+    const CHUNK = 400;
+    for(let i=0;i<list.length;i+=CHUNK){
+      const batch = writeBatch(db);
+      list.slice(i,i+CHUNK).forEach(rec=> batch.set(doc(paiementsCol), rec));
+      await batch.commit();
+    }
+    msg.textContent = list.length + ' paiements importés.';
+  }catch(err){ msg.textContent = 'Échec de l\'import : ' + err.message; }
+});
+
+document.getElementById('finExport').addEventListener('click', ()=>{
+  const rows = finFiltered();
+  const header = ['Année','Trimestre','Client','Moyen','Montant','Dépense','Marge','Statut','Reste','Dossier','Note'];
+  const csv = [header.join(';')].concat(rows.map(r=>[r.annee,r.trimestre,r.client,r.moyen,r.montant,r.depense||0,(r.montant||0)-(r.depense||0),r.statut,r.reste||0,r.dossierId||'',r.note||'']
+    .map(v=>String(v===undefined||v===null?'':v).replace(/;/g,',')).join(';'))).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'}));
+  a.download = 'paiements_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+});
+
+function startPaySync(){
+  if(unsubPay) return;
+  unsubPay = onSnapshot(paiementsCol, snap=>{
+    PAY = snap.docs.map(d=>Object.assign({_docId:d.id}, d.data()));
+    if(currentPage === 'finances') renderFinancesPage();
+  }, err=> console.error(err));
+}
+function stopPaySync(){ if(unsubPay){ unsubPay(); unsubPay = null; } PAY = []; }
+
 setInterval(renderAll, 60000);
 
 // ---------- Firebase auth + sync ----------
@@ -1121,6 +1477,7 @@ getRedirectResult(auth).catch(err=>{
 
 document.getElementById('btnSignOut').addEventListener('click', async ()=>{
   if(unsubscribe) unsubscribe();
+  stopPaySync();
   await signOut(auth);
 });
 
@@ -1185,6 +1542,7 @@ window.__adminBackfillField = async function(list, field){
 
 function startSync(){
   populateFilters();
+  if(ROLE === 'owner') startPaySync(); else stopPaySync();
   const src = ROLE === 'architect' ? query(dossiersCol, where('otake','==','Oui')) : dossiersCol;
   unsubscribe = onSnapshot(src, snap=>{
     DATA = snap.docs.map(d=>Object.assign({_docId:d.id}, d.data()));
